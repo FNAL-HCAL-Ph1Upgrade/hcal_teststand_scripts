@@ -32,6 +32,7 @@ class teststand:
 					self.uhtr_ips.append(ip)
 					self.uhtr[slot] = ip
 				self.glib_ip = "192.168.1.{0}".format(160 + self.glib_slot)
+				self.nqies = int(self.qie_cards_per_slot) * int(self.qies_per_card)
 				self.fe = {}
 				if len(self.fe_crates) <= len(self.qie_slots):
 					for i in range(len(self.fe_crates)):
@@ -65,8 +66,8 @@ class teststand:
 	
 	def get_temps(self):		# Returns a list of various temperatures around the teststand.
 		temps = []
-		for crate in self.fe_crates:
-			temps.append(get_temp(self, crate)["temp"])		# See the "get_temp" funtion above.
+		for i, crate in enumerate(self.fe_crates):
+			temps.append(get_temp(self, crate, i)["temp"])		# See the "get_temp" funtion above.
 		return temps
 	
 	def get_data(self, uhtr_slot=12, i_link=0, n=300):
@@ -191,27 +192,33 @@ def get_qies(ts, unique_id, f="", d="configuration/maps"):
 	return qies
 
 # Return the temperatures of your system:
-def get_temp(ts, crate):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
-	log =""
-	command = "get HF{0}-adc56_f".format(crate)
-	raw_output = ngccm.send_commands(ts, command)["output"]
-#		print raw_output
-	temp = -1
-	try:
-		match = search("get HF{0}-adc56_f # ([\d\.]+)".format(crate), raw_output)
-#			print match.group(0)
-#			print match.group(1)
-		temp = float(match.group(1))
-	except Exception as ex:
-#		print raw_output
-		log += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, command, ex)
-		match = search("\n(.*ERROR!!.*)\n", raw_output)
+def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
+	commands = []
+	for slot in ts.qie_slots[icrate]:
+		commands.append("get HE{0}-{1}-temperature_f".format(crate, slot))
+		commands.append("wait")
+	raw_output = ngccm.send_commands(ts, commands)["output"]
+	temp = []
+	log =[]
+	for i,slot in enumerate(ts.qie_slots[icrate]):
+		temp.append("")
+		log.append("")
+		try:
+			match = search("get HE{0}-{1}-temperature_f # ([\d\.]+)".format(crate, slot), raw_output)
+			#print match.group(0)
+			#print match.group(1)
+			temp[i] = float(match.group(1))
+		except Exception as ex:
+			#		print raw_output
+			log[i] += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, commands[i], ex)
+			match = search("\n(.*ERROR!!.*)\n", raw_output)
 		if match:
-			log+='The data string was "{0}".'.format(match.group(0).strip())
+			log[i] += 'The data string was "{0}".'.format(match.group(0).strip())
+
 	return {
 		"temp":	temp,
 		"log":	log,
-	}
+		}
 
 def get_temps(ts=False):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
 	output = {}
@@ -221,7 +228,7 @@ def get_temps(ts=False):		# It's more flexible to not have the input be a testst
 			output[crate] = []
 			for slot in slots:
 				cmds = [
-					"get HF{0}-{1}-bkp_temp_f".format(crate, slot),		# The temperature sensor on the QIE card, near the bottom, labeled "U40".
+					"get HE{0}-{1}-bkp_temp_f".format(crate, slot),		# The temperature sensor on the QIE card, near the bottom, labeled "U40".
 				]
 				output[crate] += ngccm.send_commands_parsed(ts, cmds)["output"]
 		return output
@@ -262,7 +269,7 @@ def get_ts_status(ts):		# This function does basic initializations and checks. I
 
 def parse_ts_configuration(f="teststands.txt"):		# This function is used to parse the "teststands.txt" configuration file. It is run by the "teststand" class; usually you want to use that instead of running this yourself.
 	# WHEN YOU EDIT THIS SCRIPT, MAKE SURE TO UPDATE install.py!
-	variables = ["name", "fe_crates", "ngccm_port", "uhtr_ip_base", "uhtr_slots", "uhtr_settings", "glib_slot", "mch_ip", "amc13_ips", "qie_slots", "control_hub"]
+	variables = ["name", "fe_crates", "ngccm_port", "uhtr_ip_base", "uhtr_slots", "uhtr_settings", "glib_slot", "mch_ip", "amc13_ips", "qie_slots", "control_hub", "qie_cards_per_slot", "qies_per_card"]
 	teststand_info = {}
 	raw = ""
 	if ("/" in f):
@@ -304,6 +311,12 @@ def parse_ts_configuration(f="teststands.txt"):		# This function is used to pars
 						elif (variable == "amc13_ips"):
 							value = search("{0}\s*=\s*([^#]+)".format(variable), line).group(1).strip()
 							teststand_info[ts_name][variable] = [i.strip() for i in value.split(",")]
+						elif (variable == "qie_cards_per_slot"):
+							value = search("{0}\s*=\s*([^#]+)".format(variable), line).group(1).strip()
+							teststand_info[ts_name][variable] = int(value.strip())
+						elif (variable == "qies_per_card"):
+							value = search("{0}\s*=\s*([^#]+)".format(variable), line).group(1).strip()
+							teststand_info[ts_name][variable] = int(value.strip())
 						elif (variable == "qie_slots"):
 							value = search("{0}\s*=\s*([^#]+)".format(variable), line).group(1).strip()
 							crate_lists = value.split(";")

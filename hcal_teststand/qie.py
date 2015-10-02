@@ -115,11 +115,11 @@ class status:
 
 # FUNCTIONS:
 # Functions to fetch component information:
-def get_bridge_info(ts, crate, slot):		# Returns a dictionary of information about the Bridge FPGA, such as the FW versions.
+def get_bridge_info(ts, crate, slot, qie_card):		# Returns a dictionary of information about the Bridge FPGA, such as the FW versions.
 	data = [
-		["version_fw_major", 'get HF{0}-{1}-B_FIRMVERSION_MAJOR'.format(crate, slot), 0],
-		["version_fw_minor", 'get HF{0}-{1}-B_FIRMVERSION_MINOR'.format(crate, slot), 0],
-		["version_fw_svn", 'get HF{0}-{1}-B_FIRMVERSION_SVN'.format(crate, slot), 0],
+		["version_fw_major", 'get HE{0}-{1}-{2}-B_FIRMVERSION_MAJOR'.format(crate, slot, qie_card), 0],
+		["version_fw_minor", 'get HE{0}-{1}-{2}-B_FIRMVERSION_MINOR'.format(crate, slot, qie_card), 0],
+		["version_fw_svn", 'get HE{0}-{1}-{2}-B_FIRMVERSION_SVN'.format(crate, slot, qie_card), 0],
 	]
 	log = ""
 	parsed_output = ngccm.send_commands_parsed(ts, [info[1] for info in data])["output"]
@@ -134,19 +134,18 @@ def get_bridge_info(ts, crate, slot):		# Returns a dictionary of information abo
 	version_fw = "{0:02d}.{1:02d}.{2:04d}".format(data[0][2], data[1][2], data[2][2])
 	return {
 		"slot":	slot,
+		"card": qie_card,
 		"version_fw_major":	data[0][2],
 		"version_fw_minor":	data[1][2],
 		"version_fw_svn":	data[2][2],
-		"version_fw":	version_fw,
+		"version_fw":	        version_fw,
 		"log":			log.strip(),
 	}
 
-def get_igloo_info(ts, crate, slot):		# Returns a dictionary of information about the IGLOO2, such as the FW versions.
+def get_igloo_info(ts, crate, slot, qie_card):		# Returns a dictionary of information about the IGLOO2, such as the FW versions.
 	data = [
-		["version_fw_major_top", 'get HF{0}-{1}-iTop_FPGA_MAJOR_VERSION'.format(crate, slot), 0],
-		["version_fw_minor_top", 'get HF{0}-{1}-iTop_FPGA_MINOR_VERSION'.format(crate, slot), 0],
-		["version_fw_major_bot", 'get HF{0}-{1}-iBot_FPGA_MAJOR_VERSION'.format(crate, slot), 0],
-		["version_fw_minor_bot", 'get HF{0}-{1}-iBot_FPGA_MINOR_VERSION'.format(crate, slot), 0],
+		["version_fw_major", 'get HE{0}-{1}-{2}-i_FPGA_MAJOR_VERSION'.format(crate, slot, qie_card), 0],
+		["version_fw_minor", 'get HE{0}-{1}-{2}-i_FPGA_MINOR_VERSION'.format(crate, slot, qie_card), 0],
 	]
 	log = ""
 	parsed_output = ngccm.send_commands_parsed(ts, [info[1] for info in data])["output"]
@@ -158,23 +157,20 @@ def get_igloo_info(ts, crate, slot):		# Returns a dictionary of information abou
 			info[2] = int(result, 16)
 		else:
 			log += '>> ERROR: Failed to find the result of "{0}". The data string follows:\n{1}'.format(cmd, result)
-	version_fw_top = "{0:02d}.{1:02d}".format(data[0][2], data[1][2])
-	version_fw_bot = "{0:02d}.{1:02d}".format(data[2][2], data[3][2])
+	version_fw = "{0:02d}.{1:02d}".format(data[0][2], data[1][2])
 	return {
 		"slot": slot,
-		"version_fw_major_top":	data[0][2],
-		"version_fw_minor_top":	data[1][2],
-		"version_fw_top":	version_fw_top,
-		"version_fw_major_bot":	data[2][2],
-		"version_fw_minor_bot":	data[3][2],
-		"version_fw_bot":	version_fw_bot,
+		"card": qie_card,
+		"version_fw_major":	data[0][2],
+		"version_fw_minor":	data[1][2],
+		"version_fw":	version_fw,
 		"log":			log.strip(),
 	}
 
-def get_info(ts, crate, slot):
+def get_info(ts, crate, slot, qie_card):
 	return{
-		"bridge": get_bridge_info(ts, crate, slot),
-		"igloo": get_igloo_info(ts, crate, slot),
+		"bridge": get_bridge_info(ts, crate, slot, qie_card),
+		"igloo": get_igloo_info(ts, crate, slot, qie_card),
 	}
 
 def get_unique_id(ts, crate, slot):		# Reads the unique ID of a given crate and slot and returns it as a list.

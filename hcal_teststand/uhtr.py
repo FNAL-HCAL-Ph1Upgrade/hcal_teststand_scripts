@@ -357,15 +357,14 @@ def get_link_info(ts, uhtr_slot):		# Statuses links and then returns a list of l
 		'status',
 		'quit',
 		'exit',
-		'exit',
-	]
+		'-1'
+		]
 	uhtr_out = send_commands(ts, uhtr_slot, commands)
 	raw_output = uhtr_out["output"]
 	log += uhtr_out["log"]
 	
 	# Parse the information:
 	link_info = parse_link_status(raw_output)
-	
 	return link_info
 
 def get_links(ts, uhtr_slot):		# Initializes and sets up links of a uHTR and then returns a list of links.
@@ -575,42 +574,28 @@ def parse_data(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc
 	data = {
 		"cid": [],
 		"adc": [],
-		"tdc_le": [],
-		"tdc_te": [],
-		"fiber": [],
-		"half": [],
+		"tdc": [],
 		"raw": [],
 	}
 	raw_temp = []
 	for line in raw_data:
-#		print line
-		cid_match = search("CAPIDS", line)
+		#print line
+		cid_match = search("CAP", line)
 		if cid_match:
-			data["cid"].append([int(i) for i in line.split()[-4:]])
-		adc_match = search("ADCs", line)
+			data["cid"].append([int(i) for i in line.split()[-2].replace("CAP","")])
+		adc_match = search("ADC", line)
 		if adc_match:
-			data["adc"].append([int(i) for i in line.split()[-4:]])
-		tdc_le_match = search("LE-TDC", line)
-		if tdc_le_match:
-			data["tdc_le"].append([int(i) for i in line.split()[-4:]])
-		tdc_te_match = search("TE-TDC", line)
-		if tdc_te_match:
-			data["tdc_te"].append([int(i) for i in line.split()[-4:]])
-		half_match = search("(TOP|BOTTOM)", line)
-		if half_match:
-			if half_match.group(1) == "BOTTOM":
-				data["half"].append(0)
-			elif half_match.group(1) == "TOP":
-				data["half"].append(1)
-		fiber_match = search("fiber\s([012])", line)
-		if fiber_match:
-			data["fiber"].append(int(fiber_match.group(1)))
+			data["adc"].append([int(i) for i in line.split()[-6:]])
+		tdc_match = search("TDC", line)
+		if tdc_match:
+			data["tdc"].append([int(i) for i in line.split()[-6:]])
 		raw_match = search("\d+\s+([0-9A-F]{5})\s*(.*)", line)
 		if raw_match:
 			raw_string = raw_match.group(1)
 			raw_thing = raw_match.group(2)
+			#print raw_string, "pompom", raw_thing
 			raw_temp.append(raw_string)
-			if not raw_thing:
+			if raw_thing:
 				data["raw"].append(raw_temp)
 				raw_temp = []
 	data["links"] = parse_links(raw)

@@ -22,22 +22,17 @@ from commands import getoutput
 def log_temp(ts):
 	log = ""
 	try:
-		temps = hcal_teststand.get_temps(ts)[1]		# Only care about crate 1
+		temps = ts.get_temps() # Only care about crate 1
 	except Exception as ex:
 		print ex
 		temps = False
 	log += "%% TEMPERATURES\n"
 	if temps:
-		for result in temps:
-			log += "{0} -> {1}\n".format(result["cmd"], result["result"])
-	cmds = [
-		"get HF1-adc58_f",		# Check that this is less than 65.
-		"get HF1-1wA_f",
-		"get HF1-1wB_f",
-	]
-	output = ngccm.send_commands_parsed(ts, cmds)["output"]
-	for result in output:
-		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
+		for crate, cratetemps in enumerate(temps):
+			for itemps, temps in enumerate(cratetemps):
+				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate], 
+									     ts.qie_slots[crate][itemps],
+									     temps)
 	return log
 
 def log_version(ts):
@@ -63,41 +58,48 @@ def log_power(ts):
 def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers, 1 is full.
 	log = ""
 	log += "%% REGISTERS\n"
-	nslot=ts.qie_slots[0]
-	crate=ts.fe_crates[0]
+	# Will monitor all crates and slots by default
+	# Function should be updated to take in an argument that lets you decide which ones to monitor
+	# Do everything one crate at a time
+	for i,crate in enumerate(ts.fe_crates):
+		log += log_registers_crate_slots(ts, scale, crate, ts.qie_slots[i])
+
+	return log
+
+def log_registers_crate_slots(ts, scale, crate, slots):
+
 	if scale == 0:
 		cmds = [
 			"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
-			"get HF{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
-			"get HF{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
-			"get HF{0}-bkp_pwr_bad".format(crate),
+			"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
+			"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
+			"get HE{0}-bkp_pwr_bad".format(crate),
 			"get fec1-qie_reset_cnt",
-			"get HF{0}-mezz_TMR_ERROR_COUNT".format(crate),
-			"get HF{0}-mezz_FPGA_MAJOR_VERSION".format(crate),
-			"get HF{0}-mezz_FPGA_MINOR_VERSION".format(crate),
+			"get HE{0}-mezz_TMR_ERROR_COUNT".format(crate),
+			"get HE{0}-mezz_FPGA_MAJOR_VERSION".format(crate),
+			"get HE{0}-mezz_FPGA_MINOR_VERSION".format(crate),
 			"get fec1-firmware_dd",
 			"get fec1-firmware_mm",
 			"get fec1-firmware_yy",
 			"get fec1-sfp1_status.RxLOS",
-			"get HF{0}-ngccm_rev_ids".format(crate),
-		]
-		for i in nslot:
-			cmds.append("get HF{0}-{1}-B_RESQIECOUNTER".format(crate,i))
-			cmds.append("get HF{0}-{1}-B_RESQIECOUNTER".format(crate,i))
-			cmds.append("get HF{0}-{1}-iTop_RST_QIE_count".format(crate,i))
-			cmds.append("get HF{0}-{1}-iTop_RST_QIE_count".format(crate,i))
-			cmds.append("get HF{0}-{1}-iBot_RST_QIE_count".format(crate,i))
-			cmds.append("get HF{0}-{1}-iBot_RST_QIE_count".format(crate,i))
+			]
+		for i in slots:
+			for j in range(ts.qie_cards_per_slot):
+				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+
 	elif scale == 1:
 		cmds=[]
 		for i in nslot:
-			cmds.extend(ngccm.get_commands(crate,i))
+			pass
+			#cmds.extend(ngccm.get_commands(crate,i)) # TODO: update to HE version
 	else:
 		cmds = []
 	output = ngccm.send_commands_parsed(ts, cmds)["output"]
-	for result in output:
-		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
-	return log
+
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+
+	return "".join(log)
 
 def list2f(List):
 	return ["{0:.2f}".format(i) for i in List]
@@ -122,7 +124,7 @@ def log_links(ts, scale=0):
 			data_full += uhtr_read
 	
 		data = uhtr.parse_data(uhtr_read)["adc"]
-		for j in range(4):
+		for j in range(6):
 			adc_avg_link.append(numpy.mean([i_bx[j] for i_bx in data]))
 		adc_avg.append(list2f(adc_avg_link))
 	log += "{0}\n".format(adc_avg)

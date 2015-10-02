@@ -61,12 +61,14 @@ qie_slots = 2
 %%
 
 name = fnal
-fe_crates = 2
+fe_crates = 1
 ngccm_port = 4242
-uhtr_ip_base = 192.168.114
-uhtr_slots = 5
+uhtr_ip_base = 192.168.41
+uhtr_slots = 4
 uhtr_settings = 1, 92		# This isn't implemented, yet!
-glib_slot = 2
+glib_slot = 6
 mch_ip = 192.168.1.41
 amc13_ips = 192.168.1.95, 192.168.1.94
-qie_slots = 4,5,6,11,13
+qie_slots = 1,2  # These are the RMs!
+qie_cards_per_slot = 4
+qies_per_card = 12

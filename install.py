@@ -12,7 +12,7 @@ from re import search, split
 # FUNCTIONS:
 def parse_ts_configuration(f="teststands.txt"):		# This function is a clone of the function of the same name in hcal_teststand but modified to be compatible with Python 2.4.
 	# WHEN YOU EDIT THIS SCRIPT, MAKE SURE TO UPDATE hcal_teststand.py IF YOU NEED TO!
-	variables = ["name", "fe_crates", "ngccm_port", "uhtr_ip_base", "uhtr_slots", "uhtr_settings", "glib_slot", "mch_ip", "amc13_ips", "qie_slots", "control_hub"]
+	variables = ["name", "fe_crates", "ngccm_port", "uhtr_ip_base", "uhtr_slots", "uhtr_settings", "glib_slot", "mch_ip", "amc13_ips", "qie_slots", "control_hub", "qie_cards_per_slot", "qies_per_card"]
 	teststand_info = {}
 	raw = ""
 	if ("/" in f):
@@ -54,6 +54,12 @@ def parse_ts_configuration(f="teststands.txt"):		# This function is a clone of t
 						elif (variable == "amc13_ips"):
 							value = search(variable + "\s*=\s*([^#]+)", line).group(1).strip()
 							teststand_info[ts_name][variable] = [i.strip() for i in value.split(",")]
+						elif (variable == "qie_cards_per_slot"):
+							value = search(variable + "\s*=\s*([^#]+)", line).group(1).strip()
+							teststand_info[ts_name][variable] = int(value.strip())
+						elif (variable == "qies_per_card"):
+							value = search(variable + "\s*=\s*([^#]+)", line).group(1).strip()
+							teststand_info[ts_name][variable] = int(value.strip())
 						elif (variable == "qie_slots"):
 							value = search(variable + "\s*=\s*([^#]+)", line).group(1).strip()
 							crate_lists = value.split(";")
