@@ -15,6 +15,8 @@ from optparse import OptionParser
 from time import sleep, time,strftime
 import numpy
 from commands import getoutput
+import monitor_teststand
+
 # CLASSES:
 # /CLASSES
 
@@ -169,7 +171,7 @@ def record(ts=False, path="data/unsorted", scale=0):
 		os.makedirs(path)
 	with open("{0}/{1}.log".format(path, t_string), "w") as out:
 		out.write(log.strip())
-	return log
+	return ("{0}/{1}.log".format(path, t_string), log)
 # /FUNCTIONS
 
 # MAIN:
@@ -230,12 +232,18 @@ if __name__ == "__main__":
 		dt_long = time() - t0_long
 		if (period_long!=0) and (dt_long > period_long*60):
 			t0_long = time()
-			record(ts=ts, path=path, scale=1)
+			logpath, log = record(ts=ts, path=path, scale=1)
+			# also parse the log here
+			monitor_teststand.monitor_teststand(ts, logpath)
 		if (period!=0) and (dt > period*60):
 			t0 = time()
-			record(ts=ts, path=path, scale=0)
+			logpath, log = record(ts=ts, path=path, scale=0)
+			# also parse the log here
+			monitor_teststand.monitor_teststand(ts, logpath)
 		if strftime("%H:%M") == options.ptime:
-			record(ts=ts, path=path, scale=1)
+			logpath, log = record(ts=ts, path=path, scale=1)
+			# also parse the log here
+			monitor_teststand.monitor_teststand(ts, logpath)
 		else:
 			sleep(1)
 #		z = False
