@@ -1269,6 +1269,73 @@ def get_commands(crate,slot):
 	"get HF{0}-tmr_errors2".format(crate)]
     return commands
 
+
+def send_commands(ts, cmds):# Executes ngccm commands in the slowest way, in order to read all of the output.
+	log = ""
+	raw_output = ""
+	if isinstance(cmds, str):
+		cmds = [cmds]
+	if "quit" not in cmds:
+		cmds.append("quit")
+	ngfec_cmd = 'ngFEC.exe -z -c -p {0}'.format(ts.ngfec_port)
+	if hasattr(ts, "control_hub"):
+		ngfec_cmd += " -H {0}".format(ts.control_hub)
+	p = pexpect.spawn(ngfec_cmd)
+	log += "----------------------------\nYou ran the following script with the ngccm tool:\n"
+	for c in cmds:
+		#print ">> {0}".format(c)
+		p.sendline(c)
+		if c != "quit":
+			p.expect("{0} #\s|E.*\n".format(c))# Sometimes a line will come in looking like "get fec1-ctrl #completions = 65844", which should not be grabbed. (So when there's no whitespace it needs to be E for error.)
+			raw_output += p.before + p.after
+		log += c + "\n"
+	log += "----------------------------\n"
+	p.expect(pexpect.EOF)
+	raw_output += p.before
+	return {
+		"output": raw_output.strip(),
+		"log": log.strip(),
+		}
+
+def send_commands_parsed(ts, cmds): # This executes commands as above, but returns the parsed responses in a list of pairs.
+	log = ""
+	output = []
+	if isinstance(cmds, str):
+		cmds = [cmds]
+	if "quit" not in cmds:
+		cmds.append("quit")
+	try:
+		ngfec_cmd = 'ngFEC.exe -z -c -p {0}'.format(ts.ngfec_port)
+		if hasattr(ts, "control_hub"):
+			ngfec_cmd += " -H {0}".format(ts.control_hub)
+		p = pexpect.spawn(ngfec_cmd)
+		log += "----------------------------\nYou ran the following script with the ngccm tool:\n"
+		for c in cmds:
+			p.sendline(c)
+			t0 = time()
+			if c != "quit":
+				p.expect("{0} #((\s|E).*)\n".format(escape(c)))
+				t1 = time()
+				output.append({
+						"cmd": c,
+						"result": p.match.group(1).strip().replace("'", ""),
+						"times": [t0, t1],
+						})
+
+			else:
+				sleep(1)
+			log += c + "\n"
+		p.close()
+	except Exception as ex:
+		print ex
+		log += str(ex)
+	log += "----------------------------\n"
+	return {
+		"output": output,
+		"log": log.strip(),
+		}
+
+
 # /VARIABLES
 
 if __name__ == "__main__":

@@ -103,24 +103,21 @@ class qie:
 
 class datum:
 	# Construction:
-	def __init__(self, adc=-1, cid=-1, tdc_le=-1, tdc_te=-1, raw=[], raw_uhtr="", bx=-1, ch=-1, half=-1, fiber=-1):
+	def __init__(self, adc=-1, cid=-1, tdc=-1, raw=[], raw_uhtr="", bx=-1, ch=-1):
 		self.adc = adc
 		self.cid = cid
-		self.tdc = self.tdc_le = tdc_le
-		self.tdc_te = tdc_te
+		self.tdc = tdc
 		if not raw:
 			raw = []
 		self.raw = raw
 		self.raw_uhtr = raw_uhtr
 		self.bx = bx
 		self.ch = ch
-		self.half = half
-		self.fiber = fiber
 	
 	# String behavior
 	def __str__(self):
 		if self.adc != -1:
-			return "<qie.datum object: CID = {0}, ADC = {1}, LE TDC = {2} (CH{3})>".format(self.cid, self.adc, self.tdc_le, self.ch)
+			return "<qie.datum object: CID = {0}, ADC = {1}, TDC = {2} (CH{3})>".format(self.cid, self.adc, self.tdc, self.ch)
 		else:
 			return "<empty qie.datum object>"
 	

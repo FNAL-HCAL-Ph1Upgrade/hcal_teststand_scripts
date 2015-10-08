@@ -28,7 +28,8 @@ class uhtr:
 		self.be_crate = self.crate = crate
 		self.be_slot = self.slot = slot
 		self.ip = ip
-		self.control_hub = ts.control_hub
+		if hasattr(ts, "control_hub"):
+			self.control_hub = ts.control_hub
 		if ts:
 			if "{0}_qie_map.json".format(ts.name) in os.listdir("configuration/maps"):
 				links = get_links_from_map(ts=ts, crate=crate, slot=slot, end=self.end)
@@ -848,12 +849,12 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 	raw_temp = []
 	for line in raw_data:
 #		print line
-		cid_match = search("CAPIDS", line)
+		cid_match = search("CAP", line)
 		if cid_match:
-			data["cid"].append( [ int(i.replace("CAP","")) for i in line.split()[-2:] ][::-1] )		# This has to be reversed because the SPY prints the links out in reverse order.
+			data["cid"].append( [int(line.split()[-2].replace("CAP",""))]*6 )		
 		adc_match = search("ADC", line)
 		if adc_match:
-			data["adc"].append([int(i) for i in line.split()[-6:]][::-1])
+			data["adc"].append([int(i) for i in line.split()[-6:]][::-1]) # This has to be reversed because the SPY prints the links out in reverse order.
 		tdc_match = search("TDC", line)
 		if tdc_match:
 			data["tdc"].append([int(i) for i in line.split()[-6:]][::-1])
@@ -865,8 +866,7 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 			if raw_thing:
 				data["raw"].append(raw_temp)
 				raw_temp = []
-#	print data
-	
+
 	# Prepare the output:
 	if not data["raw"]:
 		return False
@@ -881,7 +881,7 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 					cid=data["cid"][bx][ch],
 					tdc=data["tdc"][bx][ch],
 					raw=data["raw"][bx],
-					raw_uhtr=reduce(lambda x, y: x + "\n" + y, raw_data[bx*6:(bx + 1)*6]),		# The data for the relevant BX ...
+					raw_uhtr=reduce(lambda x, y: x + "\n" + y, raw_data[bx*3:(bx + 1)*3]),		# The data for the relevant BX ...
 					bx=bx,
 					ch=ch,
 				))

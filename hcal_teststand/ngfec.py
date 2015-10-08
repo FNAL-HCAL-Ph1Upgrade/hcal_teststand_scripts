@@ -14,7 +14,7 @@ import meta
 
 # VARIABLES:
 cmds_default = ["quit"]
-port_default = 4342
+port_default = 4242
 # /VARIABLES
 
 # CLASSES:

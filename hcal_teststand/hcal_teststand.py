@@ -419,6 +419,7 @@ def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be 
 		commands.append("get HE{0}-{1}-temperature_f".format(crate,slot))
 		commands.append("wait")
 	raw_output = ngccm.send_commands(ts, commands)["output"]
+
 	temp = []
 	log = []
 	for i,slot in enumerate(ts.qie_slots[icrate]):

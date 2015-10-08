@@ -84,8 +84,8 @@ def log_registers_crate_slots(ts, scale, crate, slots):
 			for j in range(ts.qie_cards_per_slot):
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
-				cmds.append("get HF{0}-{1}-{2}-i_LinkTestMode".format(crate,i,j+1))
-				cmds.append("get HF{0}-{1}-{2}-i_CntrReg_CImode".format(crate,i,j+1))
+				cmds.append("get HE{0}-{1}-{2}-i_LinkTestMode".format(crate,i,j+1))
+				cmds.append("get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate,i,j+1))
 	elif scale == 1:
 		cmds=[]
 		for i in slots:
@@ -93,7 +93,9 @@ def log_registers_crate_slots(ts, scale, crate, slots):
 			#cmds.extend(ngccm.get_commands(crate,i)) # TODO: update to HE version
 	else:
 		cmds = []
-	output = ngfec.send_commands(ts=ts, cmds=cmds)
+	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	log = ""
+
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
@@ -115,6 +117,7 @@ def log_links(ts, scale=0):
 		data_full = ""
 		for i in active_links:
 			uhtr_read = uhtr.get_raw_spy(ts=ts,crate=cs[0],slot=cs[1],n_bx=50,i_link=i)[cs][i]
+			#print uhtr_read
 			if scale == 1:
 				data_full += uhtr_read
 			adc_avg.append(list2f([numpy.mean([qad.adc for qad in item]) for item in uhtr.parse_spy(uhtr_read)]))
@@ -130,7 +133,7 @@ def record(ts=False, path="data/unsorted", scale=0):
 	t0 = time_string()
 
 	# Log basics:
-	log += log_power(ts)		# Power
+	#log += log_power(ts)		# Power
 	log += "\n"
 #	log += log_version(ts)
 	log += log_temp(ts)		# Temperature
