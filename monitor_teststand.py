@@ -18,6 +18,8 @@ import smtplib		# For emailing.
 from email.mime.text import MIMEText		# For emailing.
 import pexpect
 
+N_ACTIVE_LINKS = 7
+
 # CLASSES:
 class check:
 	# Construction:
@@ -47,22 +49,22 @@ def parse_log(log_raw):
 			"registers": {},
 			"lines": [line for line in lines[1:] if line],
 		}
-#	print log_parsed.keys()
 	
 	# Format registers into dictionaries:
 	for section, values in log_parsed.iteritems():
 		for value in values["lines"]:
 			if "->" in value:
-				pieces = value.split(" -> ")
-				values["registers"][pieces[0].strip()] = pieces[1].strip()
+				pieces = value.rpartition(" -> ")
+				values["registers"][pieces[0].strip()] = pieces[2].strip()
 	
 	# Format "links" values:
 	if "links" in log_parsed.keys():
 		if log_parsed["links"]:
-			log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][0])		# Turn the list of links into a python list.
-			log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][1])
-			log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][2])
-	
+			# Turn the list of links into a python list.
+			log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][0].split("links:")[-1])
+			log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][1].split("orbit:")[-1])
+			log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][2].split("meanADC:")[-1])
+
 	return log_parsed
 
 ## Checks:
@@ -71,29 +73,21 @@ def check_temps(log_parsed):
 	error = ""
 	try:
 		temps = []
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["get HF1-2-bkp_temp_f"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["get HF1-2-bkp_temp_f"]))
+		if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate 1 -> RM 1"]:
+			temps.append(float(log_parsed["temperatures"]["registers"]["Crate 1 -> RM 1"]))
 		else:
 			temps.append(-1)
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["get HF1-adc58_f"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["get HF1-adc58_f"]))
+		if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate 1 -> RM 2"]:
+			temps.append(float(log_parsed["temperatures"]["registers"]["Crate 1 -> RM 2"]))
 		else:
 			temps.append(-1)
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["get HF1-1wA_f"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["get HF1-1wA_f"]))
-		else:
-			temps.append(-1)
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["get HF1-1wB_f"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["get HF1-1wB_f"]))
-		else:
-			temps.append(-1)
+
 		if max(temps) < 65:
 			result = True
 		else:
-			error += "ERROR: get HF1-2-bkp_temp_f -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-2-bkp_temp_f"])
-			error += "ERROR: get HF1-adc58_f -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-adc58_f"])
-			error += "ERROR: get HF1-1wA_f -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-1wA_f"])
-			error += "ERROR: get HF1-1wB_f -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-1wB_f"])
+			error += "ERROR: Crate 1 -> RM 1 -> {0}\n".format(log_parsed["registers"]["registers"]["Crate 1 -> RM 1"])
+			error += "ERROR: Crate 1 -> RM 2 -> {0}\n".format(log_parsed["registers"]["registers"]["Crate 1 -> RM 2"])
+
 	except Exception as ex:
 		error += str(ex)
 		print ex
@@ -106,7 +100,7 @@ def check_clocks(log_parsed):
 		lhc_clock = -1
 		if "ERROR" not in log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"]:
 			lhc_clock = int(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], 16)
-		if lhc_clock > 400776 and lhc_clock < 400788:
+		if lhc_clock > 400776 and lhc_clock < 400790: # changed from 400788 since fnal clock is at 400788
 			result = True
 		else:
 			error += "ERROR: get fec1-LHC_clk_freq -> {0} ({1})\n".format(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], lhc_clock)
@@ -116,21 +110,25 @@ def check_clocks(log_parsed):
 	return check(result=result, error=error.strip(), scale=1)
 
 def check_ngccm_static_regs(log_parsed):
+	# This does not seem to be implemented for HE. 
+	# ONES: 0x5050505
+	# ZEROES: 0x7070707
+	# Do this stuff for the igloo and bridge
 	result_zeroes = False
 	result_ones = False
 	error = ""
 	try:
-		if log_parsed["registers"]["registers"]["get HF1-mezz_ONES"] == "'0xffffffff 0xffffffff 0xffffffff 0xffffffff'":
+		if log_parsed["registers"]["registers"]["get HE1-mezz_ONES"] == "'0xffffffff 0xffffffff 0xffffffff 0xffffffff'":
 			result_ones = True
 		else:
-			error += "ERROR: get HF1-mezz_ONES -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-mezz_ONES"])
+			error += "ERROR: get HE1-mezz_ONES -> {0}\n".format(log_parsed["registers"]["registers"]["get HE1-mezz_ONES"])
 	except Exception as ex:
 		print ex
 	try:
-		if log_parsed["registers"]["registers"]["get HF1-mezz_ZEROES"] == "'0 0 0 0'":
+		if log_parsed["registers"]["registers"]["get HE1-mezz_ZEROES"] == "'0 0 0 0'":
 			result_zeroes = True
 		else:
-			error += "ERROR: get HF1-mezz_ZEROES -> {0}\n".format(log_parsed["registers"]["registers"]["get HF1-mezz_ZEROES"])
+			error += "ERROR: get HE1-mezz_ZEROES -> {0}\n".format(log_parsed["registers"]["registers"]["get HE1-mezz_ZEROES"])
 	except Exception as ex:
 		error += str(ex)
 		print ex
@@ -144,10 +142,10 @@ def check_link_number(log_parsed):
 	error = ""
 	try:
 		links = log_parsed["links"]["links"]
-		if len(links) == 5:
+		if len(links) == N_ACTIVE_LINKS:
 			result = True
 		else:
-			error += "ERROR: There weren't 5 active links! The links are {0}.\n".format(links)
+			error += "ERROR: There weren't {0} active links! The links are {1}.\n".format(N_ACTIVE_LINKS, links)
 	except Exception as ex:
 		error += str(ex)
 		print ex
@@ -158,6 +156,7 @@ def check_link_orbits(log_parsed):
 	error = ""
 	try:
 		orbits = log_parsed["links"]["orbits"]
+		orbits = [float(orbit) for orbit in orbits]
 		results = [True if orbit < 11.3 and orbit > 11.1 else False for orbit in orbits ]
 		if False not in results:
 			result = True
@@ -172,11 +171,12 @@ def check_link_adc(log_parsed):
 	result = False
 	error = ""
 	try:
-		adcs_per_link = log_parsed["links"]["adc"]
+		adcs_per_link = [[float(link[i]) for i in range(len(link))] for link in log_parsed["links"]["adc"]]
 		adcs = []
 		for link in adcs_per_link:
 			adcs.extend(link)
-		if (min(adcs) > 0 and max(adcs) < 10):
+		# TODO: tune this threshold, will depend on whether we read out CM
+		if (min(adcs) > 0 and max(adcs) < 50):
 			result = True
 		else:
 			error += "ERROR: The pedestal values are wrong! Look: {0}.\n".format(adcs)
@@ -186,6 +186,7 @@ def check_link_adc(log_parsed):
 	return check(result=result, error=error.strip(), scale=0)
 
 def check_power(log_parsed):
+	# Cannot test at FNAL
 	result = False
 	error = ""
 	try:
@@ -229,11 +230,12 @@ def send_email(subject="", body=""):
 	s.sendmail(
 		"alerts@connivance.net", 
 		[
-			"tote@physics.rutgers.edu",
+#			"tote@physics.rutgers.edu",
 #			"sdg@cern.ch",
-			"tullio.grassi@gmail.com",
-			"yw5mj@virginia.edu",
-			"whitbeck.andrew@gmail.com",
+#			"tullio.grassi@gmail.com",
+#			"yw5mj@virginia.edu",
+#			"whitbeck.andrew@gmail.com",
+			"nadja.strobbe@gmail.com"
 		],
 		msg.as_string()
 	)
@@ -275,11 +277,12 @@ def power_cycle(n=10):
 		log += "[!!] Power cycle aborted. The OVP wasn't 11 V.\n"
 	return log
 
-def disable_qie(crate=1):
+def disable_qie(ts, crate=1):
 	cmds = [
-		"put HF{0}-bkp_pwr_enable 0".format(crate),
+		"put HE{0}-bkp_pwr_enable 0".format(crate),
 	]
-	return ngccm.send_commands_parsed(4242, cmds)["output"]
+	return ngccm.send_commands_parsed(ts.ngfec_port, cmds)["output"]
+
 # /FUNCTIONS
 
 # MAIN:
@@ -288,17 +291,22 @@ if __name__ == "__main__":
 	parser = OptionParser()
 	parser.add_option("-t", "--teststand", dest="ts",
 		default="157",
-		help="The name of the teststand you want to use (default is \"157\"). Unless you specify the path, the directory will be put in \"data\".",
+		help="The name of the teststand you want to use (default is %default). Unless you specify the path, the directory will be put in \"data\".",
 		metavar="STR"
 	)
 	parser.add_option("-d", "--directory", dest="d",
 		default="data/ts_157",
-		help="The directory containing the log files (default is \"data/ts_157\").",
+		help="The directory containing the log files (default is %default).",
 		metavar="STR"
 	)
+	parser.add_option("--date", dest="date",
+			  default="today",
+			  help = "The date for which you want to parse the logs (default:%default)",
+			  metavar = "YYMMDD")
 	(options, args) = parser.parse_args()
 	name = options.ts
 	directory = options.d
+	date = options.date
 	
 	# Set up teststand:
 	ts = teststand(name)
@@ -321,7 +329,8 @@ if __name__ == "__main__":
 		dt_last_log = time() - t_last_log
 	
 		# Find subdirectory named after the date and construct the full path:
-		date = time_string()[:6]
+		if options.date == "today":
+			date = time_string()[:6]
 		path = directory + "/" + date
 		
 		if os.path.exists(path):
@@ -336,12 +345,13 @@ if __name__ == "__main__":
 			# Construct the queue, the files to check:
 			if not last_log:
 				last_log = logs[-2]
-			next_log = logs[-1]
+			next_log = logs[-1] # should be the last element of the list, so the newest log
 #			queue = logs[logs.index(last_log) + 1:]		# The queue is all the log files after the last one checked. (Yes, this will skip the first one if no "last" is specified. Whatever.
 			queue = [next_log]
+
 			if next_log != last_log:
-#				print last_log
-#				print next_log
+				print last_log
+				print next_log
 				# Open and check logs in queue:
 				for log in queue:
 					print "> Monitoring log {0} ...".format(log)
@@ -354,20 +364,21 @@ if __name__ == "__main__":
 					checks = []
 					checks.append(check_temps(parsed))
 					checks.append(check_clocks(parsed))
-					cntrl_link = check_ngccm_static_regs(parsed)
-					checks.append(cntrl_link)
+					#cntrl_link = check_ngccm_static_regs(parsed)
+					#checks.append(cntrl_link)
 					checks.append(check_link_number(parsed))
 					checks.append(check_link_orbits(parsed))
-					checks.append(check_power(parsed))
+					#checks.append(check_power(parsed))
 					checks.append(check_cntrl_link(parsed))
 					checks.append(check_link_adc(parsed))
 #					checks.append(check(result=False, scale=1, error="This is a fake error message"))
 					
 					# Control link status:
-					if status_last != -1:
-						if cntrl_link.result != status_last:
-							send_email(subject="Update: control link", body="The state of the control link changed from {0} to {1}.".format(status_last, cntrl_link.result))
-					status_last = cntrl_link.result
+					#if status_last != -1:
+					#	if cntrl_link.result != status_last:
+					#		pass
+					#		send_email(subject="Update: control link", body="The state of the control link changed from {0} to {1}.".format(status_last, cntrl_link.result))
+					#status_last = cntrl_link.result
 					
 					# Deal with failed checks:
 					failed = [c for c in checks if not c.result]
@@ -386,7 +397,7 @@ if __name__ == "__main__":
 							print "> CRITICAL ERROR DETECTED!"
 							
 							# Prepare email:
-							email_subject = "ERROR at teststand 157"
+							email_subject = "ERROR at HE teststand"
 							email_body = "Critical errors were detected while reading \"{0}\".\nThe errors are listed below:\n\n".format(log)
 							for c in critical:
 								email_body += c.error + " (scale {0})".format(c.scale)
@@ -397,7 +408,7 @@ if __name__ == "__main__":
 							if [c for c in critical if c.scale > 1]:
 #								power_log = power_cycle()
 #								power_log = setup_157()
-								power_log = str(disable_qie())
+								power_log = str(disable_qie(ts))
 #								email_body += "A power cycle was triggered. Here's how it went:\n\n"
 #								email_body += "A power enable cycle was triggered. Here's how it went:\n\n"
 								email_body += "A QIE card disable was triggered. Here's how it went:\n\n"
@@ -412,7 +423,7 @@ if __name__ == "__main__":
 							email_body += "\nHave a nice day!"
 							try:
 								print "> Sending email ..."
-								send_email(subject=email_subject, body=email_body)
+								#send_email(subject=email_subject, body=email_body)
 								print "> Email sent."
 							except Exception as ex:
 								print "ERROR!!!"
@@ -438,10 +449,10 @@ if __name__ == "__main__":
 #					z = False
 #					break
 			else:
-				if dt_last_log > 5*60:
+				if dt_last_log > 60*60:
 					email_body = "ERROR: I think the logging code crashed."
 					print "> {0}".format(email_body)
-					send_email(subject="ERROR at teststand 157", body=email_body)
+					#send_email(subject="ERROR at teststand 157", body=email_body)
 					z = False
 				sleep(1)
 				n_sleep += 1
