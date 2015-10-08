@@ -76,21 +76,16 @@ def print_igloo_info(ts, crate, slot):
 	else:
 		print "\tFW version (bottom): {0}".format(igloo_info["version_fw_bot"])
 
-def print_qie_info_1(ts, crate, slot):
-	qie_info = qie.get_info(ts, crate, slot)
+def print_qie_info_1(ts, crate, slot, qie_card):
+	qie_info = qie.get_info(ts, crate, slot, qie_card)
 	igloo_info = qie_info["igloo"]
 	bridge_info = qie_info["bridge"]
-	print "* QIE card (crate {0}, slot {1:02d}) =================".format(crate, slot)
-	if (igloo_info["version_fw_top"] == "00.00"):
+	print "* QIE card (crate {0}, slot {1:02d}, qie card {2}) =================".format(crate, slot, qie_card)
+	if (igloo_info["version_fw"] == "00.00"):
 		print "\tERROR: There was a problem fetching the IGLOO's top FPGA information."
 #		print "\tThe log is below:\n++++++++++++++ LOG ++++++++++++++++++\n{0}\n+++++++++++++ /LOG ++++++++++++++++++".format(igloo_info["log"])
 	else:
-		print "\tIGLOO2 FW version (top): {0}".format(igloo_info["version_fw_top"])
-	if (igloo_info["version_fw_bot"] == "00.00"):
-		print "\tERROR: There was a problem fetching the IGLOO's bottom FPGA information."
-#		print "\tThe log is below:\n++++++++++++++ LOG ++++++++++++++++++\n{0}\n+++++++++++++ /LOG ++++++++++++++++++".format(igloo_info["log"])
-	else:
-		print "\tIGLOO2 FW version (bottom): {0}".format(igloo_info["version_fw_bot"])
+		print "\tIGLOO2 FW version: {0}".format(igloo_info["version_fw"])
 	if (bridge_info["version_fw"] == "00.00.0000"):
 		print "\tERROR: There was a problem fetching the BRIDGE information."
 #		print "\tThe log is below:\n++++++++++++++ LOG ++++++++++++++++++\n{0}\n+++++++++++++ /LOG ++++++++++++++++++".format(bridge_info["log"])
@@ -100,7 +95,8 @@ def print_qie_info_1(ts, crate, slot):
 def print_qie_info(ts):
 	for crate, slots in ts.fe.iteritems():
 		for slot in slots:
-			print_qie_info_1(ts, crate, slot)
+			for qie_card in range(1, ts.qie_cards_per_slot+1):
+				print_qie_info_1(ts, crate, slot, qie_card)
 # /FUNCTIONS
 
 # MAIN:
@@ -114,10 +110,10 @@ if __name__ == "__main__":
 		name = "904"
 	ts = teststand(name)
 	print "\n>> Finding the versions of the {0} teststand...".format(name)
-	print_amc13_info(ts)
-	print_glib_info(ts)
-	print_uhtr_info(ts)
-	print_ngccm_info(ts)
+	#print_amc13_info(ts)
+	#print_glib_info(ts)
+	#print_uhtr_info(ts)
+	#print_ngccm_info(ts)
 	print_qie_info(ts)
 ##	print_bridge_info(ts, 1, 2)
 ##	print_igloo_info(ts, 1, 1)

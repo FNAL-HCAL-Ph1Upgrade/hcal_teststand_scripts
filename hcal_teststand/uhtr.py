@@ -832,10 +832,7 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 	data = {
 		"cid": [],
 		"adc": [],
-		"tdc_le": [],
-		"tdc_te": [],
-		"fiber": [],
-		"half": [],
+		"tdc": [],
 		"raw": [],
 	}
 	
@@ -853,31 +850,19 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 #		print line
 		cid_match = search("CAPIDS", line)
 		if cid_match:
-			data["cid"].append([int(i) for i in line.split()[-4:]][::-1])		# This has to be reversed because the SPY prints the links out in reverse order.
-		adc_match = search("ADCs", line)
+			data["cid"].append( [ int(i.replace("CAP","")) for i in line.split()[-2:] ][::-1] )		# This has to be reversed because the SPY prints the links out in reverse order.
+		adc_match = search("ADC", line)
 		if adc_match:
-			data["adc"].append([int(i) for i in line.split()[-4:]][::-1])
-		tdc_le_match = search("LE-TDC", line)
-		if tdc_le_match:
-			data["tdc_le"].append([int(i) for i in line.split()[-4:]][::-1])
-		tdc_te_match = search("TE-TDC", line)
-		if tdc_te_match:
-			data["tdc_te"].append([int(i) for i in line.split()[-4:]][::-1])
-		half_match = search("(TOP|BOTTOM)", line)
-		if half_match:
-			if half_match.group(1) == "BOTTOM":
-				data["half"].append(0)
-			elif half_match.group(1) == "TOP":
-				data["half"].append(1)
-		fiber_match = search("fiber\s([0123])", line)		# "3" implies that there's a problem. 
-		if fiber_match:
-			data["fiber"].append(int(fiber_match.group(1)))
+			data["adc"].append([int(i) for i in line.split()[-6:]][::-1])
+		tdc_match = search("TDC", line)
+		if tdc_match:
+			data["tdc"].append([int(i) for i in line.split()[-6:]][::-1])
 		raw_match = search("\d+\s+([0-9A-F]{5})\s*(.*)", line)
 		if raw_match:
 			raw_string = raw_match.group(1)
 			raw_thing = raw_match.group(2)
 			raw_temp.append(raw_string)
-			if not raw_thing:
+			if raw_thing:
 				data["raw"].append(raw_temp)
 				raw_temp = []
 #	print data
@@ -888,20 +873,17 @@ def parse_spy(raw):		# From raw uHTR SPY data, return a list of adcs, cids, etc.
 	else:
 		# Format the data dictionary into datum objects:
 #		print data
-		results = [[] for i in range(4)]		# Will return a list of datum objects for each channel.
+		results = [[] for i in range(6)]		# Will return a list of datum objects for each channel.
 		for bx, adcs in enumerate(data["adc"]):
 			for ch, adc in enumerate(adcs):
 				results[ch].append(qie.datum(
 					adc=adc,
 					cid=data["cid"][bx][ch],
-					tdc_le=data["tdc_le"][bx][ch],
-					tdc_te=data["tdc_te"][bx][ch],
+					tdc=data["tdc"][bx][ch],
 					raw=data["raw"][bx],
 					raw_uhtr=reduce(lambda x, y: x + "\n" + y, raw_data[bx*6:(bx + 1)*6]),		# The data for the relevant BX ...
 					bx=bx,
 					ch=ch,
-					half=data["half"][bx],
-					fiber=data["fiber"][bx]
 				))
 		return results
 

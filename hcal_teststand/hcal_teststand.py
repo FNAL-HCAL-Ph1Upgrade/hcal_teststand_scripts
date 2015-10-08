@@ -23,9 +23,7 @@ class teststand:
 			
 			# Extract teststand info from the teststand configuration file:
 			ts_info = install.parse_ts_configuration(f)[self.name]
-			# Make any custom changes:
-#			fe = meta.parse_args_crate_slot(crate=fe_crate, slot=fe_slot, crate_type="fe")
-#			print fe
+
 			if fe_crate:
 				if isinstance(fe_crate, int):
 					fe_crate = [fe_crate]
@@ -138,9 +136,8 @@ class teststand:
 						slot=fe_slot,
 						control_hub=control_hub,
 					)
-			
-			# The following is a temporary kludge:
-#				self.uhtr_ips = []
+			self.nqies = int(self.qie_cards_per_slot) * int(self.qies_per_card)
+
 			self.uhtr = {}
 			for slot in self.uhtr_slots[0]:
 				ip = "192.168.{0}.{1}".format(self.be_crates[0], slot*4)
@@ -292,8 +289,8 @@ class teststand:
 	
 	def get_temps(self):		# Returns a list of various temperatures around the teststand.
 		temps = []
-		for crate in self.fe_crates:
-			temps.append(get_temp(self, crate)["temp"])		# See the "get_temp" funtion above.
+		for i, crate in enumerate(self.fe_crates):
+			temps.append(get_temp(self, crate, i)["temp"])		# See the "get_temp" funtion above.
 		return temps
 	
 	def get_data(self, uhtr_slot=12, i_link=0, n=300):
@@ -416,27 +413,29 @@ def get_qies(ts, unique_id, f="", d="configuration/maps"):
 	return qies
 
 # Return the temperatures of your system:
-def get_temp(ts, crate):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
-	log =""
-	command = "get HF{0}-adc56_f".format(crate)
-	raw_output = ngccm.send_commands(ts, command)["output"]
-#		print raw_output
-	temp = -1
-	try:
-		match = search("get HF{0}-adc56_f # ([\d\.]+)".format(crate), raw_output)
-#			print match.group(0)
-#			print match.group(1)
-		temp = float(match.group(1))
-	except Exception as ex:
-#		print raw_output
-		log += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, command, ex)
-		match = search("\n(.*ERROR!!.*)\n", raw_output)
+def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
+	commands = []
+	for slot in ts.qie_slots[icrate]:
+		commands.append("get HE{0}-{1}-temperature_f".format(crate,slot))
+		commands.append("wait")
+	raw_output = ngccm.send_commands(ts, commands)["output"]
+	temp = []
+	log = []
+	for i,slot in enumerate(ts.qie_slots[icrate]):
+		temp.append("")
+		log.append("")
+		try:
+			match = search("get HE{0}-{1}-temperature_f # ([\d\.]+)".format(crate, slot), raw_output)
+			temp[i] = float(match.group(1))
+		except Exception as ex:
+			log[i] += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, commands[i], ex)
+			match = search("\n(.*ERROR!!.*)\n", raw_output)
 		if match:
-			log+='The data string was "{0}".'.format(match.group(0).strip())
+			log[i] += 'The data string was "{0}".'.format(match.group(0).strip())
 	return {
 		"temp":	temp,
 		"log":	log,
-	}
+		}
 
 # THIS IS NOT GOING TO WORK, NEEDS TO BE UPDATED:
 def get_temps(ts=False):		# It's more flexible to not have the input be a teststand object. I should make it accept both.
@@ -447,7 +446,7 @@ def get_temps(ts=False):		# It's more flexible to not have the input be a testst
 			output[crate] = []
 			for slot in slots:
 				cmds = [
-					"get HF{0}-{1}-bkp_temp_f".format(crate, slot),		# The temperature sensor on the QIE card, near the bottom, labeled "U40".
+					"get HE{0}-{1}-bkp_temp_f".format(crate, slot),		# The temperature sensor on the QIE card, near the bottom, labeled "U40".
 				]
 				output[crate] += ngfec.send_commands(ts=ts, cmds=cmds)
 		return output

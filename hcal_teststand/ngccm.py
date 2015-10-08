@@ -289,15 +289,8 @@ def get_power(ts=False):
 	if ts:
 		for crate in ts.fe_crates:
 			cmds = [
-				"get HF{0}-VIN_voltage_f".format(crate),
-				"get HF{0}-VIN_current_f".format(crate),
-				"get HF{0}-3V3_voltage_f".format(crate),
-				"get HF{0}-3V3_current_f".format(crate),
-				"get HF{0}-2V5_voltage_f".format(crate),
-				"get HF{0}-2V5_current_f".format(crate),
-				"get HF{0}-1V5_voltage_f".format(crate),
-				"get HF{0}-1V5_current_f".format(crate),		# This is really the current of 1.5 V plust the current of 1.2 V.
-				"get HF{0}-1V2_voltage_f".format(crate),
+				"get HE{0}-VIN_voltage_f".format(crate),
+				"get HE{0}-VIN_current_f".format(crate),
 			]
 			output[crate] = ngfec.send_commands(ts=ts, cmds=cmds)
 		return output
@@ -321,19 +314,19 @@ def set_CI_mode(ts , crate , slot , enable = True , DAC = 0 ) :
 # This function should be moved to "qie.py":
 def get_qie_shift_reg(ts , crate , slot , qie_list = range(1,5) ):
 	
-	qie_settings = [ "CalMode", 
-			 "CapID0pedestal", 
+	qie_settings = [ "CapID0pedestal", 
 			 "CapID1pedestal", 
 			 "CapID2pedestal", 
 			 "CapID3pedestal", 
 			 "ChargeInjectDAC", 
 			 "DiscOn", 
-			 "FixRange", 
-			 "IdcBias", 
-			 "IsetpBias", 
+			 "FixRange",
+			 "Gsel",
+			 "Idcset",
 			 "Lvds", 
 			 "PedestalDAC",
-			 "RangeSet", 
+			 "RangeSet",
+			 "TDCmode",
 			 "TGain", 
 			 "TimingIref", 
 			 "TimingThresholdDAC",
@@ -345,7 +338,7 @@ def get_qie_shift_reg(ts , crate , slot , qie_list = range(1,5) ):
 	for qie in qie_list :
 		#print qie
 		for setting in qie_settings : 
-			commands.append("get HF{0}-{1}-QIE{2}_{3}".format(crate,slot,qie,setting))
+			commands.append("get HE{0}-{1}-QIE{2}_{3}".format(crate,slot,qie,setting))
 	
 	ngccm_output = ngfec.send_commands(ts=ts, cmds=commands)
 	
