@@ -1,5 +1,5 @@
 ####################################################################
-# Type: SCRIPT                                                     #
+# Type: MODULE                                                     #
 #                                                                  #
 # Description: This reads teststand logs to find errors. There are #
 # minor and major errors, both are recorded. In addition, major    #
@@ -284,6 +284,108 @@ def disable_qie(ts, crate=1):
 	return ngccm.send_commands_parsed(ts.ngfec_port, cmds)["output"]
 
 # /FUNCTIONS
+
+def monitor_teststand(ts, logpath):
+
+	# Make sure the log file actually exists
+	if not os.path.isfile(logpath):
+		print "Log file does not exist!"
+		print "Is there a problem with the logger?"
+		#send email
+		return
+	else:
+		print "> Monitoring log {0} ...".format(logpath)
+
+	# Now open the log and parse it
+	with open(logpath) as f_in:
+		parsed = parse_log(f_in.read())
+				
+		# Perform checks:
+		error_log = ""
+		checks = []
+		checks.append(check_temps(parsed))
+		checks.append(check_clocks(parsed))
+		#cntrl_link = check_ngccm_static_regs(parsed)
+		#checks.append(cntrl_link)
+		checks.append(check_link_number(parsed))
+		checks.append(check_link_orbits(parsed))
+		#checks.append(check_power(parsed))
+		checks.append(check_cntrl_link(parsed))
+		checks.append(check_link_adc(parsed))
+		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
+					
+		# Control link status:
+		#if status_last != -1:
+		#	if cntrl_link.result != status_last:
+		#		pass
+		#		send_email(subject="Update: control link", body="The state of the control link changed from {0} to {1}.".format(status_last, cntrl_link.result))
+		#status_last = cntrl_link.result
+					
+		# Deal with failed checks:
+		failed = [c for c in checks if not c.result]
+		if failed:				
+			# Set up error log:
+			error_log = ""
+			for c in failed:
+				print c.error
+				error_log += "{0} (scale {1})\n".format(c.error, c.scale)
+					
+			# Deal with critical errors:
+			critical = [c for c in failed if c.scale > 0]
+			if critical:
+				print "> CRITICAL ERROR DETECTED!"
+							
+				# Prepare email:
+				email_subject = "ERROR at HE teststand"
+				email_body = "Critical errors were detected while reading \"{0}\".\nThe errors are listed below:\n\n".format(logpath)
+				for c in critical:
+					email_body += c.error + " (scale {0})".format(c.scale)
+					email_body += "\n"
+				email_body += "\n"
+				
+				# Try to fix the major problems immediately
+				# Power cycle if any have scale 2 or greater:
+				if [c for c in critical if c.scale > 1]:
+					#power_log = power_cycle()
+					#power_log = setup_157()
+					power_log = str(disable_qie(ts))
+					#email_body += "A power cycle was triggered. Here's how it went:\n\n"
+					#email_body += "A power enable cycle was triggered. Here's how it went:\n\n"
+					email_body += "A QIE card disable was triggered. Here's how it went:\n\n"
+					email_body += power_log
+					email_body += "\n"
+					#error_log += "A power cycle was triggered. Here's how it went:\n\n"
+					#error_log += "A power enable cycle was triggered. Here's how it went:\n\n"
+					error_log += "A QIE card disable was triggered. Here's how it went:\n\n"
+					error_log += power_log
+							
+				# Send email:
+				email_body += "\nHave a nice day!"
+				try:
+					print "> Sending email ..."
+					#send_email(subject=email_subject, body=email_body)
+					print "> Email sent."
+				except Exception as ex:
+					print "ERROR!!!"
+					print ex
+					error_log += str(ex)
+					error_log += "\n"
+							
+				if [c for c in critical if c.scale > 1]:
+					print "> Waiting 2 minutes after the power cycle before going back to monitoring logs ..."
+					sleep(2*60)
+							
+			# Write error log:
+			logpathinfo = logpath.rpartition("/")
+			if not os.path.exists("{0}/error_logs".format(logpathinfo[0])):
+				os.makedirs("{0}/error_logs".format(logpathinfo[0]))
+			with open("{0}/error_logs/errors_{1}".format(logpathinfo[0], logpathinfo[2]), "w") as out:
+				out.write(error_log)
+
+		else:
+			print "All checks passed"
+					
+
 
 # MAIN:
 if __name__ == "__main__":
