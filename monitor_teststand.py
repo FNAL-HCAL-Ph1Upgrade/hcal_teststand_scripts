@@ -68,25 +68,24 @@ def parse_log(log_raw):
 	return log_parsed
 
 ## Checks:
-def check_temps(log_parsed):
+def check_temps(ts,log_parsed):
 	result = False
 	error = ""
 	try:
 		temps = []
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate 1 -> RM 1"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["Crate 1 -> RM 1"]))
-		else:
-			temps.append(-1)
-		if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate 1 -> RM 2"]:
-			temps.append(float(log_parsed["temperatures"]["registers"]["Crate 1 -> RM 2"]))
-		else:
-			temps.append(-1)
+		for ix, i in enumerate(ts.fe_crates):
+			for j in ts.qie_slots[ix]:
+				if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate {0} -> RM {1}".format(i,j)]:
+					temps.append(float(log_parsed["temperatures"]["registers"]["Crate {0} -> RM {1}".format(i,j)]))
+				else:
+					temps.append(-1)
 
 		if max(temps) < 65:
 			result = True
 		else:
-			error += "ERROR: Crate 1 -> RM 1 -> {0}\n".format(log_parsed["registers"]["registers"]["Crate 1 -> RM 1"])
-			error += "ERROR: Crate 1 -> RM 2 -> {0}\n".format(log_parsed["registers"]["registers"]["Crate 1 -> RM 2"])
+			for ix, i in enumerate(ts.fe_crates):
+				for j in ts.qie_slots[ix]:
+					error += "ERROR: Crate {0} -> RM {1} -> {2}\n".format(i,j,log_parsed["registers"]["registers"]["Crate {0} -> RM {1}".format(i,j)])
 
 	except Exception as ex:
 		error += str(ex)
@@ -291,7 +290,14 @@ def monitor_teststand(ts, logpath):
 	if not os.path.isfile(logpath):
 		print "Log file does not exist!"
 		print "Is there a problem with the logger?"
-		#send email
+		email_body = """Hi there,
+There seems to be a problem with the logger. 
+The monitor cannot find the log that should have been created just now.
+Please check the system asap!
+
+Thanks!!
+"""
+		#send_email(subject="!!Problem with HE log_teststand.py!!" , body=email_body)
 		return
 	else:
 		print "> Monitoring log {0} ...".format(logpath)
@@ -303,7 +309,7 @@ def monitor_teststand(ts, logpath):
 		# Perform checks:
 		error_log = ""
 		checks = []
-		checks.append(check_temps(parsed))
+		checks.append(check_temps(ts,parsed))
 		checks.append(check_clocks(parsed))
 		#cntrl_link = check_ngccm_static_regs(parsed)
 		#checks.append(cntrl_link)

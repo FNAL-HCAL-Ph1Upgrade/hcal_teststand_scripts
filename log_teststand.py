@@ -60,11 +60,13 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	# Function should be updated to take in an argument that lets you decide which ones to monitor
 	# Do everything one crate at a time
 	for i, crate in enumerate(ts.fe_crates):
-		log += log_registers_crate_slots(ts, scale, crate, ts.qie_slots[i])
+		log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
+		#log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
+		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
 
 	return log
 
-def log_registers_crate_slots(ts, scale, crate, slots):
+def log_registers_crate_slots(ts, crate, slots, scale):
 
 	if scale == 0:
 		cmds = [
@@ -86,8 +88,6 @@ def log_registers_crate_slots(ts, scale, crate, slots):
 			for j in range(ts.qie_cards_per_slot):
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
-				cmds.append("get HE{0}-{1}-{2}-i_LinkTestMode".format(crate,i,j+1))
-				cmds.append("get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate,i,j+1))
 	elif scale == 1:
 		cmds=[]
 		for i in slots:
@@ -102,6 +102,111 @@ def log_registers_crate_slots(ts, scale, crate, slots):
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
 
+# Specific HE stuff
+def log_qie_registers_per_qie(ts, crate, slot, nqie):
+	# We can log all registers every time since the QIEs only contain one big register
+	cmds = [ 
+		"get HE{0}-{1}-QIE{2}_CapID0pedestal".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_CapID1pedestal".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_CapID2pedestal".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_CapID3pedestal".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_DiscOn".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_Idcset".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_RangeSet".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_TimingIref".format(crate,slot,nqie), 
+		"get HE{0}-{1}-QIE{2}_ChargeInjectDAC".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_FixRange".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_Lvds".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_TDCmode".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_TimingThresholdDAC".format(crate,slot,nqie),  
+		"get HE{0}-{1}-QIE{2}_CkOutEn".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_Gsel".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_PedestalDAC".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_TGain".format(crate,slot,nqie),
+		"get HE{0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
+		]
+	
+	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	log = ""
+	for result in output:
+		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
+        return log
+
+def log_qie_registers(ts, crate, slots, scale=0):
+	log = [""]
+	for i in slots:
+		# Potentially only read out one or a couple qies for the very frequent logs
+		if scale == 0:
+			log.append(log_qie_registers_per_qie(ts, crate, i, 10))
+		elif scale == 1:
+			for j in range(ts.nqies):
+				print "Checking QIE", j, "in slot", i
+				log.append(log_qie_registers_per_qie(ts, crate, i, j+1))
+
+	return "".join(log)
+
+
+
+def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
+
+	cmds = ["get HE{0}-{1}-{2}-i_FPGA_MINOR_VERSION".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_FPGA_MAJOR_VERSION".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_ZerosRegister".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_OnesRegister".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_FPGA_TopOrBottom".format(crate, slot, qiecard),
+		"wait",
+		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, qiecard), 
+		"get HE{0}-{1}-{2}-i_StatusReg_PLL320MHzLock".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_StatusReg_QieDLLNoLock".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_StatusReg_zero".format(crate, slot, qiecard),
+		"wait",
+		"get HE{0}-{1}-{2}-i_WTE_count".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_Clk_count".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_RST_QIE_count".format(crate, slot, qiecard),
+		"wait",
+		"get HE{0}-{1}-{2}-i_CapIdErrLink1_count".format(crate, slot, qiecard),
+		"get HE{0}-{1}-{2}-i_CapIdErrLink2_count".format(crate, slot, qiecard), 
+		"get HE{0}-{1}-{2}-i_CapIdErrLink3_count".format(crate, slot, qiecard),
+		]
+
+	if scale == 1:
+		cmds_extra = ["wait",
+			      "get HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard),
+			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoRun".format(crate, slot, qiecard),
+			      "get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate, slot, qiecard),
+			      "get HE{0}-{1}-{2}-i_CntrReg_InternalQIER".format(crate, slot, qiecard),  
+			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoClear".format(crate, slot, qiecard),      
+			      ]
+                cmds.extend(cmds_extra)
+	print cmds
+	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No igloo registers found"
+		return ""
+
+def log_igloo2_registers(ts, crate, slots, scale=0):
+	log = [""]
+	for i in slots:
+		# QIE clock phases
+		cmds = ["get HE{0}-{1}-Qie1_ck_ph".format(crate, i)]
+		if scale == 1:
+			cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, nqie+1) for nqie in range(ts.nqies)])
+		output = ngccm.send_commands_parsed(ts, cmds)["output"]
+		log.append("{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output)		   
+
+		# Other igloo stuff
+		for j in range(ts.qie_cards_per_slot):
+			log.append(log_igloo2_registers_per_card(ts, crate, i, j+1, scale))
+
+	return "".join(log)
+
+			
 def list2f(List):
 	return ["{0:.2f}".format(i) for i in List]
 	
