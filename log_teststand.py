@@ -61,7 +61,7 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	# Do everything one crate at a time
 	for i, crate in enumerate(ts.fe_crates):
 		log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
-		#log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
+		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
 
 	return log
@@ -95,7 +95,8 @@ def log_registers_crate_slots(ts, crate, slots, scale):
 			#cmds.extend(ngccm.get_commands(crate,i)) # TODO: update to HE version
 	else:
 		cmds = []
-	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	#output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	output = ngfec.send_commands(ts=ts, cmds=cmds)
 	log = ""
 
 	for result in output:
@@ -126,7 +127,8 @@ def log_qie_registers_per_qie(ts, crate, slot, nqie):
 		"get HE{0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
 		]
 	
-	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+#	output = ngccm.send_commands_parsed(ts, cmds)["output"]
+	output = ngfec.send_commands(ts=ts, cmds=cmds)
 	log = ""
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
@@ -148,42 +150,54 @@ def log_qie_registers(ts, crate, slots, scale=0):
 
 
 def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
+	# Providing all commands at the same time seems to result in timeout
+	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds = ["get HE{0}-{1}-{2}-i_FPGA_MINOR_VERSION".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_FPGA_MAJOR_VERSION".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_ZerosRegister".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_OnesRegister".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_FPGA_TopOrBottom".format(crate, slot, qiecard),
-		"wait",
-		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, qiecard), 
-		"get HE{0}-{1}-{2}-i_StatusReg_PLL320MHzLock".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_StatusReg_QieDLLNoLock".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_StatusReg_zero".format(crate, slot, qiecard),
-		"wait",
-		"get HE{0}-{1}-{2}-i_WTE_count".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_Clk_count".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_RST_QIE_count".format(crate, slot, qiecard),
-		"wait",
-		"get HE{0}-{1}-{2}-i_CapIdErrLink1_count".format(crate, slot, qiecard),
-		"get HE{0}-{1}-{2}-i_CapIdErrLink2_count".format(crate, slot, qiecard), 
-		"get HE{0}-{1}-{2}-i_CapIdErrLink3_count".format(crate, slot, qiecard),
-		]
+	cmds1 = ["get HE{0}-{1}-{2}-i_FPGA_MINOR_VERSION".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_FPGA_MAJOR_VERSION".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_ZerosRegister".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_OnesRegister".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_FPGA_TopOrBottom".format(crate, slot, qiecard)
+		 ]
+	cmds2 = ["get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, qiecard), 
+		 "get HE{0}-{1}-{2}-i_StatusReg_PLL320MHzLock".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_StatusReg_QieDLLNoLock".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_StatusReg_zero".format(crate, slot, qiecard)
+		 ]
+	cmds3 = ["get HE{0}-{1}-{2}-i_WTE_count".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_Clk_count".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_RST_QIE_count".format(crate, slot, qiecard)
+		 ]
+	cmds4 = ["get HE{0}-{1}-{2}-i_CapIdErrLink1_count".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-i_CapIdErrLink2_count".format(crate, slot, qiecard), 
+		 "get HE{0}-{1}-{2}-i_CapIdErrLink3_count".format(crate, slot, qiecard)
+		 ]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	output = ngfec.send_commands(ts=ts, cmds=cmds2)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds3)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds4)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
 
 	if scale == 1:
-		cmds_extra = ["wait",
-			      "get HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard),
+		cmds_extra = ["get HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard),
 			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoRun".format(crate, slot, qiecard),
 			      "get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate, slot, qiecard),
 			      "get HE{0}-{1}-{2}-i_CntrReg_InternalQIER".format(crate, slot, qiecard),  
 			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoClear".format(crate, slot, qiecard),      
 			      ]
-                cmds.extend(cmds_extra)
-	print cmds
-	output = ngccm.send_commands_parsed(ts, cmds)["output"]
-	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+
+	        #output = ngccm.send_commands_parsed(ts, cmds)["output"]
+		output = ngfec.send_commands(ts=ts, cmds=cmds_extra)
+		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
 	if len(log) > 0:
 		return "".join(log)
 	else:
@@ -191,15 +205,15 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
 		return ""
 
 def log_igloo2_registers(ts, crate, slots, scale=0):
-	log = [""]
+	log = []
 	for i in slots:
 		# QIE clock phases
 		cmds = ["get HE{0}-{1}-Qie1_ck_ph".format(crate, i)]
 		if scale == 1:
 			cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, nqie+1) for nqie in range(ts.nqies)])
-		output = ngccm.send_commands_parsed(ts, cmds)["output"]
-		log.append("{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output)		   
-
+		#output = ngccm.send_commands_parsed(ts, cmds)["output"]
+		output = ngfec.send_commands(ts=ts, cmds=cmds)
+		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
 		# Other igloo stuff
 		for j in range(ts.qie_cards_per_slot):
 			log.append(log_igloo2_registers_per_card(ts, crate, i, j+1, scale))

@@ -98,7 +98,7 @@ def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_defaul
 #		sleep(1)		# I need to make sure the ngccm process is killed.
 		p.close()
 #		print "closed"
-		killall()
+#		killall()
 		if raw:
 			return raw_output
 		else:

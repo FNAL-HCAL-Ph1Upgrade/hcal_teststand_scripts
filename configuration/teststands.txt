@@ -112,3 +112,4 @@ amc13_ips = 192.168.1.95, 192.168.1.94
 qie_slots = 1,2 # These are the RMs
 qie_cards_per_slot = 4
 qies_per_card = 12
+control_hub = localhost
