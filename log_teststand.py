@@ -62,7 +62,9 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	for i, crate in enumerate(ts.fe_crates):
 		log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
 		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
+		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
+		log += log_control_registers(ts, crate, ts.qie_slots[i], scale)
 
 	return log
 
@@ -142,7 +144,7 @@ def log_qie_registers(ts, crate, slots, scale=0):
 			log.append(log_qie_registers_per_qie(ts, crate, i, 10))
 		elif scale == 1:
 			for j in range(ts.nqies):
-				print "Checking QIE", j, "in slot", i
+				#print "Checking QIE", j, "in slot", i
 				log.append(log_qie_registers_per_qie(ts, crate, i, j+1))
 
 	return "".join(log)
@@ -220,7 +222,90 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 
 	return "".join(log)
 
-			
+
+def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
+	# Providing all commands at the same time seems to result in timeout
+	# Until better solution is available, I will pass the commands in smaller groups
+
+	cmds1 = ["get HE{0}-{1}-{2}-B_FIRMVERSION_MAJOR".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_FIRMVERSION_MINOR".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_ZEROES".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_ONES".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_ONESZEROES".format(crate, slot, qiecard)
+		 ]
+	cmds2 = ["get HE{0}-{1}-{2}-B_WTECOUNTER".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_CLOCKCOUNTER".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate, slot, qiecard)
+		 ]
+	cmds3 = ["get HE{0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard)
+		 #"get HE{0}-{1}-{2}-B_SHT_rh_f".format(crate, slot, qiecard), # Not sure what this is atm 
+		 ]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	output = ngfec.send_commands(ts=ts, cmds=cmds2)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds3)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No bridge registers found"
+		return ""
+
+
+def log_bridge_registers(ts, crate, slots, scale=0):
+	log = []
+	for i in slots:
+		for j in range(ts.qie_cards_per_slot):
+			log.append(log_bridge_registers_per_card(ts, crate, i, j+1, scale))
+
+	return "".join(log)
+
+
+def log_control_registers_per_card(ts, crate, slot, scale):
+	# Providing all commands at the same time seems to result in timeout
+	# Until better solution is available, I will pass the commands in smaller groups
+
+	cmds1 = ["get HE{0}-{1}-peltier_adjustment_f".format(crate, slot),
+		 "get HE{0}-{1}-peltier_control".format(crate, slot),
+		 "get HE{0}-{1}-peltier_stepseconds".format(crate, slot),
+		 "get HE{0}-{1}-peltier_targettemperature_f".format(crate, slot),
+		 "get HE{0}-{1}-PeltierVoltage_f".format(crate, slot),
+		 "get HE{0}-{1}-PeltierCurrent_f".format(crate, slot)
+		 ]
+	cmds2 = ["get HE{0}-{1}-BVin_f".format(crate, slot),
+		 "get HE{0}-{1}-Vin_f".format(crate, slot),
+		 "get HE{0}-{1}-Vt_f".format(crate, slot),
+		 "get HE{0}-{1}-Vdd_f".format(crate, slot)
+		 ]
+	cmds3 = ["get HE{0}-{1}-biasmon[1-{2}]_f".format(crate, slot, ts.nqies),
+		 "get HE{0}-{1}-LeakageCurrent[1-{2}]_f".format(crate, slot, ts.nqies)
+		 ]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	output = ngfec.send_commands(ts=ts, cmds=cmds2)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds3)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No control card registers found"
+		return ""
+
+def log_control_registers(ts, crate, slots, scale=0):
+	# registers on the SiPM control card
+	log = []
+	for i in slots:
+		log.append(log_control_registers_per_card(ts, crate, i, scale))
+
+	return "".join(log)
+
+
 def list2f(List):
 	return ["{0:.2f}".format(i) for i in List]
 	
@@ -346,25 +431,39 @@ if __name__ == "__main__":
 	z = True
 	t0 = 0
 	t0_long = time()
+	nfailed_tries = 0
 	while z == True:
 		dt = time() - t0
 		dt_long = time() - t0_long
-		if (period_long!=0) and (dt_long > period_long*60):
-			t0_long = time()
-			logpath, log = record(ts=ts, path=path, scale=1)
-			# also parse the log here
-			monitor_teststand.monitor_teststand(ts, logpath)
-		if (period!=0) and (dt > period*60):
-			t0 = time()
-			logpath, log = record(ts=ts, path=path, scale=0)
-			# also parse the log here
-			monitor_teststand.monitor_teststand(ts, logpath)
-		if strftime("%H:%M") == options.ptime:
-			logpath, log = record(ts=ts, path=path, scale=1)
-			# also parse the log here
-			monitor_teststand.monitor_teststand(ts, logpath)
-		else:
-			sleep(1)
+		try:
+			if (period_long!=0) and (dt_long > period_long*60):
+				t0_long = time()
+				logpath, log = record(ts=ts, path=path, scale=1)
+				# also parse the log here
+				monitor_teststand.monitor_teststand(ts, logpath)
+			if (period!=0) and (dt > period*60):
+				t0 = time()
+				logpath, log = record(ts=ts, path=path, scale=0)
+				# also parse the log here
+				monitor_teststand.monitor_teststand(ts, logpath)
+			if strftime("%H:%M") == options.ptime:
+				logpath, log = record(ts=ts, path=path, scale=1)
+			        # also parse the log here
+				monitor_teststand.monitor_teststand(ts, logpath)
+			else:
+				sleep(1)
+		except KeyboardInterrupt:
+			print "bye!"
+			sys.exit()
+		except:
+			nfailed_tries += 1
+			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+			if nfailed_tries > 2:
+				print "System is in a very bad state, stopping the logger nicely and alerting experts..."
+				monitor_teststand.send_email("Critical Problem for HE Radiation Test!","Go check system now! Multiple exceptions were caught. Something is not working properly.")
+				sys.exit()
+			
+
 #		z = False
 	
 # /MAIN
