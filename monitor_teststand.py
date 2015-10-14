@@ -136,6 +136,10 @@ def check_ngccm_static_regs(log_parsed):
 		result = True
 	return check(result=result, error=error.strip(), scale=0)
 
+## -------------------------------
+## -- Check status of the links --
+## -------------------------------
+
 def check_link_number(log_parsed):
 	result = False
 	error = ""
@@ -184,6 +188,44 @@ def check_link_adc(log_parsed):
 		print ex
 	return check(result=result, error=error.strip(), scale=0)
 
+def check_link_status(statData):
+        problemLinks = []
+
+        linksGood = True
+        # Problem type: 
+        # type 1 needs a link init
+        # type 2 is orbit rate related, which means just wait to see if it improves
+        problemType = 0  
+        for link in statData:
+                if statData[link]['On']:
+                        if statData[link]['badAlign']>10:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                problemType = 1
+                        if not statData[link]['orbitRates'] == 1.12e+01:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                if problemType==0: problemType=2
+                        if statData[link]['badData']>0:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                problemType = 1
+                        if statData[link]['badDataRate']>0:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                problemType = 1
+                        if statData[link]['alignDelta']==0 or statData[link]['alignDelta'] > 14:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                problemType = 1
+                        if statData[link]['alignDelta'] != statData[link]['alignOcc']:
+                                linksGood = False
+                                if not link in problemLinks: problemLinks.append(link)
+                                problemType = 1
+
+        return linksGood, problemLinks, problemType
+
+
 def check_power(log_parsed):
 	# Cannot test at FNAL
 	result = False
@@ -224,7 +266,7 @@ def send_email(subject="", body=""):
 	msg['From'] = "alerts@teststand.hcal"
 	msg['To'] = ""
 	
-	s = smtplib.SMTP('slmp-550-22.slc.westdc.net')
+	s = smtplib.SMTP_SSL('slmp-550-22.slc.westdc.net')
 	s.login("alerts@connivance.net", "Megash4rk")
 	s.sendmail(
 		"alerts@connivance.net", 
@@ -284,7 +326,7 @@ def disable_qie(ts, crate=1):
 
 # /FUNCTIONS
 
-def monitor_teststand(ts, logpath):
+def monitor_teststand(ts, ts_status, logpath, link_status):
 
 	# Make sure the log file actually exists
 	if not os.path.isfile(logpath):
@@ -297,10 +339,36 @@ Please check the system asap!
 
 Thanks!!
 """
-		#send_email(subject="!!Problem with HE log_teststand.py!!" , body=email_body)
+		send_email(subject="!!Problem with HE log_teststand.py!!" , body=email_body)
 		return
 	else:
 		print "> Monitoring log {0} ...".format(logpath)
+
+        # First check the health of the links
+        for (uhtr_, statData) in link_status:
+                linksGood, problemLinks, problemType = check_link_status(statData)
+                if not linksGood:
+                        print "Problem in uHTR in crate {0}, slot {1}, with Links: {2}".format(uhtr_.crate, uhtr_.slot, problemLinks)
+                        if problemType == 1:
+                                print "Initializing links"
+                                uhtr.initLinks_per_uhtr(ts, uhtr_.crate, uhtr_.slot, uhtr_.ip,
+                                                        ts_status.consts["Links"].OrbitDelay,
+                                                        ts_status.consts["Links"].Auto_Realign,
+                                                        ts_status.consts["Links"].OnTheFlyAlignment,
+                                                        ts_status.consts["Links"].CDRreset,
+                                                        ts_status.consts["Links"].GTXreset)
+                                print "Checking link status again, and sending email"
+                                sleep(2)
+                                raw_status = parseLinkStatus(linkStatus_per_uhtr(ts=ts,
+                                                                                 crate=uhtr_.crate,
+                                                                                 slot=uhtr_.slot,
+                                                                                 ip=uhtr_.ip,
+                                                                                 control_hub=ts.control_hub))
+                                send_email(subject="HE radiation test: links reinitialized!", body="Link status after reinitialization is\n{0}".format(raw_status[1]))
+                                # TODO: add while loop to initialize extra times if necessary
+                        elif problemType == 2:
+                                print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
+
 
 	# Now open the log and parse it
 	with open(logpath) as f_in:
@@ -369,7 +437,7 @@ Thanks!!
 				email_body += "\nHave a nice day!"
 				try:
 					print "> Sending email ..."
-					#send_email(subject=email_subject, body=email_body)
+					send_email(subject=email_subject, body=email_body)
 					print "> Email sent."
 				except Exception as ex:
 					print "ERROR!!!"

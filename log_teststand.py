@@ -16,6 +16,7 @@ from time import sleep, time,strftime
 import numpy
 from commands import getoutput
 import monitor_teststand
+from teststand_status import TestStandStatus
 
 # CLASSES:
 # /CLASSES
@@ -308,9 +309,25 @@ def log_control_registers(ts, crate, slots, scale=0):
 
 def list2f(List):
 	return ["{0:.2f}".format(i) for i in List]
+
+
+#def checklinks(ts):
+#	print uhtr.initLinks(ts)
 	
 def log_links(ts, scale=0):
 	log = "%% LINKS\n"
+
+        # First grab the link status
+        link_status = uhtr.linkStatus(ts)
+        # Now parse it
+        link_status_parsed = []
+        for (uhtr_, rawStatus) in link_status:
+                statusDict, statusString = uhtr.parseLinkStatus(rawStatus)
+                if scale == 1:
+                        log += "{0}\n".format(statusString)
+                link_status_parsed.append((uhtr_, statusDict))
+
+        # Now also grab some spy data
 	link_results = uhtr.get_info_links(ts)
 	for cs in link_results.keys():
 		active_links = [i for i, active in enumerate(link_results[cs]["active"]) if active]
@@ -331,7 +348,8 @@ def log_links(ts, scale=0):
 		if scale == 1:
 			log += data_full
 			log += uhtr.get_linkdtc(ts,cs[0],cs[1])
-	return log
+
+	return log, link_status_parsed
 
 def record(ts=False, path="data/unsorted", scale=0):
 	log = ""
@@ -353,8 +371,10 @@ def record(ts=False, path="data/unsorted", scale=0):
 	log += "\n"
 	
 	# Log links:
-	log += log_links(ts, scale=scale)
+        link_log, link_status = log_links(ts, scale=scale)
+	log += link_log
 	log += "\n"
+
 	
 	# Log other:
 #	log += "[!!]%% WHAT?\n(There is an error counter, which I believe is in the I2C register. This only counts GBT errors from GLIB to ngCCM. I doubt that Ozgur has updated the GLIB v3 to also count errors from ngCCM to GLIB. That would be useful to have if the counter exists.\nI also want to add, if there is time, an error counter of TMR errors. For the DFN macro TMR code, I implement an error output that goes high if all three outputs are not the same value. This would monitor only a couple of D F/Fs but I think it would be useful to see if any TMR errors are detected.)\n\n"
@@ -375,7 +395,7 @@ def record(ts=False, path="data/unsorted", scale=0):
 		os.makedirs(path)
 	with open("{0}/{1}.log".format(path, t_string), "w") as out:
 		out.write(log.strip())
-	return ("{0}/{1}.log".format(path, t_string), log)
+	return ("{0}/{1}.log".format(path, t_string), log, link_status)
 # /FUNCTIONS
 
 # MAIN:
@@ -421,7 +441,9 @@ if __name__ == "__main__":
 	
 	# Set up teststand:
 	ts = teststand(name)
-	
+	# Get a status object
+        ts_status = TestStandStatus(name)
+
 	# Print information:
 	print ">> The output directory is {0}.".format(path)
 	print ">> The logging period is {0} minutes.".format(period)
@@ -438,26 +460,27 @@ if __name__ == "__main__":
 		try:
 			if (period_long!=0) and (dt_long > period_long*60):
 				t0_long = time()
-				logpath, log = record(ts=ts, path=path, scale=1)
+				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 				# also parse the log here
-				monitor_teststand.monitor_teststand(ts, logpath)
+				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status)
 			if (period!=0) and (dt > period*60):
 				t0 = time()
-				logpath, log = record(ts=ts, path=path, scale=0)
+				logpath, log, link_status = record(ts=ts, path=path, scale=0)
 				# also parse the log here
-				monitor_teststand.monitor_teststand(ts, logpath)
+				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status)
 			if strftime("%H:%M") == options.ptime:
-				logpath, log = record(ts=ts, path=path, scale=1)
+				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 			        # also parse the log here
-				monitor_teststand.monitor_teststand(ts, logpath)
+				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status)
 			else:
 				sleep(1)
 		except KeyboardInterrupt:
 			print "bye!"
 			sys.exit()
-		except:
+		except Exception as ex:
 			nfailed_tries += 1
 			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+			print ex
 			if nfailed_tries > 2:
 				print "System is in a very bad state, stopping the logger nicely and alerting experts..."
 				monitor_teststand.send_email("Critical Problem for HE Radiation Test!","Go check system now! Multiple exceptions were caught. Something is not working properly.")
