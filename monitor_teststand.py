@@ -266,7 +266,7 @@ def send_email(subject="", body=""):
 	msg['From'] = "alerts@teststand.hcal"
 	msg['To'] = ""
 	
-	s = smtplib.SMTP_SSL('slmp-550-22.slc.westdc.net')
+	s = smtplib.SMTP_SSL('slmp-550-22.slc.westdc.net',465)
 	s.login("alerts@connivance.net", "Megash4rk")
 	s.sendmail(
 		"alerts@connivance.net", 
