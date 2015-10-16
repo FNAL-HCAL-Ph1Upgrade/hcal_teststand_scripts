@@ -253,19 +253,18 @@ def check_link_status(statData):
 def check_qie_registers(qie_status, log_parsed):
         result = False
         error = []
-        for crate_slot, qie_registers in qie_status.iteritems():
-                crate, slot = crate_slot
-                for iqie, qie_register in enumerate(qie_registers):
-                        # do the checks on all qie registers
-                        regs = [reg for reg in dir(qie_register) if not reg.startswith("__")]
-                        for reg in regs:
-                                # Find it in the logs, and check whether it matches
-                                log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, iqie, reg)]
-                                exp_reg = getattr(qie_register, reg)
-                                if exp_reg != int(log_reg):
-                                        # Probably a SEU
-                                        error.append("QIE error: get HE{0}-{1}-QIE{2}_{3} returned {4}, we expected {5}.".format(crate, slot, iqie, reg, log_reg, exp_reg))
-                                        result = False
+        for crate_slot_qie, qie_register in qie_status.iteritems():
+                crate, slot, qienum = crate_slot_qie
+                # do the checks on all qie registers
+                regs = [reg for reg in dir(qie_register) if not reg.startswith("__")]
+                for reg in regs:
+                        # Find it in the logs, and check whether it matches
+                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, qienum, reg)]
+                        exp_reg = getattr(qie_register, reg)
+                        if exp_reg != int(log_reg,0):
+                                # Probably a SEU
+                                error.append("QIE error: get HE{0}-{1}-QIE{2}_{3} returned {4}, we expected {5}.".format(crate, slot, qienum, reg, log_reg, exp_reg))
+                                result = False
                                         
         return check(result=result, error="\n".join(error), scale=0)
 
@@ -277,7 +276,7 @@ def check_controlcard_registers(controlcard_status, log_parsed):
                 regs = [reg for reg in dir(cc_register) if not reg.startswith("__")]
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
-                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}_{2}".format(crate, slot, reg)]
+                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
                         exp_reg = getattr(cc_register, reg)
                         if reg.endswith("_f"):
                                 # we are dealing with a float, so should not require exact match
@@ -286,7 +285,7 @@ def check_controlcard_registers(controlcard_status, log_parsed):
                                         error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
                                         result = False
                         else:
-                                if exp_reg != int(log_reg):
+                                if exp_reg != int(log_reg,0):
                                         # Probably a SEU, these are the peltier registers
                                         error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
                                         result = False
@@ -311,7 +310,7 @@ def check_bridge_registers(bridge_status, log_parsed):
                                                 pass
                                         else:
                                                 try:
-                                                        log_reg_i = int(log_reg)
+                                                        log_reg_i = int(log_reg,0)
                                                 except ValueError:
                                                         pass
                                 else:
@@ -319,7 +318,7 @@ def check_bridge_registers(bridge_status, log_parsed):
         return check(result=result, error="\n".join(error), scale=0)
 
 def check_registers(ts_status, log_parsed):
-        # Check the qies
+        # Check the qies        
         check_qies = check_qie_registers(ts_status.qies, log_parsed)
         check_controlcards = check_controlcard_registers(ts_status.controlcards, log_parsed)
         return [check_qies, check_controlcards]
@@ -478,18 +477,18 @@ Thanks!!
                         if problemType == 1:
                                 print "Initializing links"
                                 uhtr.initLinks_per_uhtr(ts, uhtr_.crate, uhtr_.slot, uhtr_.ip,
-                                                        ts_status.consts["Links"].OrbitDelay,
-                                                        ts_status.consts["Links"].Auto_Realign,
-                                                        ts_status.consts["Links"].OnTheFlyAlignment,
-                                                        ts_status.consts["Links"].CDRreset,
-                                                        ts_status.consts["Links"].GTXreset)
+                                                        ts_status.links.OrbitDelay,
+                                                        ts_status.links.Auto_Realign,
+                                                        ts_status.links.OnTheFlyAlignment,
+                                                        ts_status.links.CDRreset,
+                                                        ts_status.links.GTXreset)
                                 print "Checking link status again, and sending email"
                                 sleep(2)
-                                raw_status = parseLinkStatus(linkStatus_per_uhtr(ts=ts,
-                                                                                 crate=uhtr_.crate,
-                                                                                 slot=uhtr_.slot,
-                                                                                 ip=uhtr_.ip,
-                                                                                 control_hub=ts.control_hub))
+                                raw_status = uhtr.parseLinkStatus(uhtr.linkStatus_per_uhtr(ts=ts,
+                                                                                           crate=uhtr_.crate,
+                                                                                           slot=uhtr_.slot,
+                                                                                           ip=uhtr_.ip,
+                                                                                           control_hub=ts.control_hub))
                                 send_email(subject="HE radiation test: links reinitialized!", body="Link status after reinitialization is\n{0}".format(raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
@@ -504,15 +503,15 @@ Thanks!!
 		error_log = ""
 		checks = []
 		checks.append(check_temps(ts, ts_status, parsed))
-		checks.append(check_clocks(parsed))
+		#checks.append(check_clocks(parsed))
 		#cntrl_link = check_ngccm_static_regs(parsed)
 		#checks.append(cntrl_link)
 		checks.append(check_link_number(ts_status, parsed))
 		checks.append(check_link_orbits(parsed))
 		checks.append(check_link_adc(ts_status, parsed))
 		#checks.append(check_power(parsed))
-		checks.append(check_cntrl_link(parsed))
-                checks.append(check_registers(ts_status, parsed))
+		#checks.append(check_cntrl_link(parsed))
+                checks.extend(check_registers(ts_status, parsed))
 
 		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
 					

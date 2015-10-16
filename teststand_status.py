@@ -15,7 +15,7 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.GTXreset = 1
         if tstype == "HEfnal":
             self.OrbitDelay = 44
-            self.n_active_links = 7
+            self.n_active_links = 2
             self.maxADC = 50
         else:
             # Not implemented yet
@@ -25,8 +25,7 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
 
 
 class QIERegisters:
-    """A class to hold the expected QIE registers, 
-and to store the current state of the ones we expect to change."""
+    """A class to hold the expected QIE registers, and to store the current state of the ones we expect to change."""
 
     def __init__(self, tstype="HEfnal"):
         """Initialize the QIERegisters object. For now it assumes that these are QIE11s"""
@@ -51,10 +50,9 @@ and to store the current state of the ones we expect to change."""
 
 
 class IglooRegisters:
-    """ A class to hold the expected igloo registers, 
-and to store the current state of the ones we expect to change."""
+    """ A class to hold the expected igloo registers, and to store the current state of the ones we expect to change."""
     
-    def __init__(self, nqies=48):
+    def __init__(self, qiecard, qies_per_card):
         """Initialize the igloo registers."""
         # These are the fixed ones
         self.FPGA_MINOR_VERSION = 5 
@@ -76,8 +74,8 @@ and to store the current state of the ones we expect to change."""
         self.CntrReg_OrbHistoClear = 0
         self.CapIdErrLink3_count = 0
 
-        for _ in range(int(nqies)):
-            setattr(self, 'Qie{0}_ck_ph'.format(_), 0) 
+        for j in xrange(qies_per_card):
+            setattr(self, 'Qie{0}_ck_ph'.format((qiecard-1)*qies_per_card+j+1), 0) 
 
         # These should be increasing
         self.WTE_count = 0
@@ -153,7 +151,7 @@ and to store the current state of the ones we expect to change."""
 class ControlCardRegisters:
     """A class to hold the information from the SiPM control card. """
 
-    def __init__(self, nqies=48):
+    def __init__(self, qiecards, qies_per_card):
         self.peltier_adjustment_f = 0.25
         self.peltier_control = 1
         self.peltier_stepseconds = 0x384
@@ -164,9 +162,10 @@ class ControlCardRegisters:
         #self.Vin_f = 
         #self.Vt_f =
         #self.Vdd_f =
-        for i in xrange(int(nqies)):
-            setattr(self, "biasmon{0}_f".format(i), 70.0)
-            #setattr(self, "LeakageCurrent{0}_f".format(i), )
+        for i in qiecards:
+            for j in xrange(qies_per_card):
+                setattr(self, "biasmon{0}_f".format((i-1)*qies_per_card+j+1), 70.0)
+                #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
 
 
@@ -182,8 +181,7 @@ that are expected to change"""
             raise TypeError("You should create the TestStandStatus object with a teststand object!!")
 
         self.tstype = ts.name
-        self.nqies = ts.nqies
-
+        
         # Store the links, for now one object, so assumes same orbitdelay
         self.links = LinkParameters(self.tstype)
 
@@ -191,22 +189,24 @@ that are expected to change"""
         self.qies = {}
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
-                self.qies[crate, slot] = [QIERegisters(self.tstype) for _ in range(ts.nqies)]
+                for qiecard in ts.qiecards[crate,slot]:
+                    for qie in xrange(ts.qies_per_card):
+                        self.qies[crate, slot, (qiecard-1)*ts.qies_per_card+qie+1] = QIERegisters(self.tstype)
 
         # Store the igloo information
         self.igloos = {}
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
-                self.igloos[crate, slot] = [IglooRegisters(self.nqies) for _ in range(ts.qie_cards_per_slot)]
+                self.igloos[crate, slot] = [IglooRegisters(_,ts.qies_per_card) for _ in ts.qiecards[crate,slot]]
 
         # Store the bridge information
         self.bridges = {}
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
-                self.bridges[crate, slot] = [BridgeRegisters(self.tstype) for _ in range(ts.qie_cards_per_slot)]
+                self.bridges[crate, slot] = [BridgeRegisters(self.tstype) for _ in ts.qiecards[crate,slot]]
 
         # Store the control card information
         self.controlcards = {}
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
-                self.controlcards[crate,slot] = ControlCardRegisters(self.nqies)
+                self.controlcards[crate,slot] = ControlCardRegisters(ts.qiecards[crate,slot], ts.qies_per_card)

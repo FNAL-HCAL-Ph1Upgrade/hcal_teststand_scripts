@@ -61,7 +61,7 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	# Function should be updated to take in an argument that lets you decide which ones to monitor
 	# Do everything one crate at a time
 	for i, crate in enumerate(ts.fe_crates):
-		log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
+		#log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
 		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
@@ -88,7 +88,7 @@ def log_registers_crate_slots(ts, crate, slots, scale):
 			]
 			
 		for i in slots:
-			for j in range(ts.qie_cards_per_slot):
+			for j in ts.qiecards[crate,i]:
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 	elif scale == 1:
@@ -141,12 +141,13 @@ def log_qie_registers(ts, crate, slots, scale=0):
 	log = [""]
 	for i in slots:
 		# Potentially only read out one or a couple qies for the very frequent logs
-		if scale == 0:
-			log.append(log_qie_registers_per_qie(ts, crate, i, 10))
-		elif scale == 1:
-			for j in range(ts.nqies):
-				#print "Checking QIE", j, "in slot", i
-				log.append(log_qie_registers_per_qie(ts, crate, i, j+1))
+		#if scale == 0:
+	#		log.append(log_qie_registers_per_qie(ts, crate, i, 45))
+	#	elif scale == 1:
+                for j in ts.qiecards[crate,i]:
+                        for k in xrange(ts.qies_per_card):
+                 		#print "Checking QIE", j, "in slot", i
+                                log.append(log_qie_registers_per_qie(ts, crate, i, (j-1)*ts.qies_per_card+k+1))
 
 	return "".join(log)
 
@@ -211,15 +212,16 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
 		# QIE clock phases
-		cmds = ["get HE{0}-{1}-Qie1_ck_ph".format(crate, i)]
+		cmds = ["get HE{0}-{1}-Qie41_ck_ph".format(crate, i)]
 		if scale == 1:
-			cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, nqie+1) for nqie in range(ts.nqies)])
+			for j in ts.qiecards[crate,i]:
+                                cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
 		#output = ngccm.send_commands_parsed(ts, cmds)["output"]
 		output = ngfec.send_commands(ts=ts, cmds=cmds)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
 		# Other igloo stuff
-		for j in range(ts.qie_cards_per_slot):
-			log.append(log_igloo2_registers_per_card(ts, crate, i, j+1, scale))
+		for j in ts.qiecards[crate,i]:
+			log.append(log_igloo2_registers_per_card(ts, crate, i, j, scale))
 
 	return "".join(log)
 
@@ -259,8 +261,8 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 def log_bridge_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
-		for j in range(ts.qie_cards_per_slot):
-			log.append(log_bridge_registers_per_card(ts, crate, i, j+1, scale))
+		for j in ts.qiecards[crate,i]:
+			log.append(log_bridge_registers_per_card(ts, crate, i, j, scale))
 
 	return "".join(log)
 
@@ -281,9 +283,11 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 		 "get HE{0}-{1}-Vt_f".format(crate, slot),
 		 "get HE{0}-{1}-Vdd_f".format(crate, slot)
 		 ]
-	cmds3 = ["get HE{0}-{1}-biasmon[1-{2}]_f".format(crate, slot, ts.nqies),
-		 "get HE{0}-{1}-LeakageCurrent[1-{2}]_f".format(crate, slot, ts.nqies)
-		 ]
+	cmds3 = []
+        for j in ts.qiecards[crate,slot]:
+                for k in xrange(ts.qies_per_card):
+                        cmds3.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, (j-1)*ts.qies_per_card+1+k))
+                        cmds3.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, (j-1)*ts.qies_per_card+1+k))
 
 	output = ngfec.send_commands(ts=ts, cmds=cmds1)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
@@ -343,7 +347,11 @@ def log_links(ts, scale=0):
 			#print uhtr_read
 			if scale == 1:
 				data_full += uhtr_read
-			adc_avg.append(list2f([numpy.mean([qad.adc for qad in item]) for item in uhtr.parse_spy(uhtr_read)]))
+                        parsed_spy = uhtr.parse_spy(uhtr_read)
+                        if not parsed_spy:
+                                log += "Something wrong with links! Found while parsing spy data. \n"
+                        else:
+                                adc_avg.append(list2f([numpy.mean([qad.adc for qad in item]) for item in parsed_spy]))
 		log += "crate,slot{0}\tmeanADC:{1}\n".format(cs,adc_avg)
 		if scale == 1:
 			log += data_full
@@ -442,7 +450,7 @@ if __name__ == "__main__":
 	# Set up teststand:
 	ts = teststand(name)
 	# Get a status object
-        ts_status = TestStandStatus(name)
+        ts_status = TestStandStatus(ts)
 
 	# Print information:
 	print ">> The output directory is {0}.".format(path)
@@ -477,14 +485,14 @@ if __name__ == "__main__":
 		except KeyboardInterrupt:
 			print "bye!"
 			sys.exit()
-		except Exception as ex:
-			nfailed_tries += 1
-			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
-			print ex
-			if nfailed_tries > 2:
-				print "System is in a very bad state, stopping the logger nicely and alerting experts..."
-				monitor_teststand.send_email("Critical Problem for HE Radiation Test!","Go check system now! Multiple exceptions were caught. Something is not working properly.")
-				sys.exit()
+		# except Exception as ex:
+		# 	nfailed_tries += 1
+		# 	print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+		# 	print ex
+		# 	if nfailed_tries > 2:
+		# 		print "System is in a very bad state, stopping the logger nicely and alerting experts..."
+		# 		monitor_teststand.send_email("Critical Problem for HE Radiation Test!","Go check system now! Multiple exceptions were caught. Something is not working properly.")
+		# 		sys.exit()
 			
 
 #		z = False

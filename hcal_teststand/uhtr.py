@@ -396,7 +396,7 @@ def parseLinkStatus(raw_link_output, verbose=True):
                         orbitRates = line[14:].split()
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['orbitRates'] = float(orbitRates[i])
+                                statData[link]['orbitRates'] = orbitRates[i]
                 if 'Bad align' in line:
                         badAlign = line.split()[2:]
                         for i in range(len(links[row])):
@@ -964,10 +964,16 @@ def parse_spy(raw):                # From raw uHTR SPY data, return a list of ad
         # Put all the data in the data dictionary:
         raw_temp = []
         for line in raw_data:
-#                print line
                 cid_match = search("CAP", line)
                 if cid_match:
-                        data["cid"].append( [int(line.split()[-2].replace("CAP",""))]*6 )                
+                        # check for error messages
+                        if "Suspicious data format!" in line:
+                                return False
+                        else:
+                                try:
+                                        data["cid"].append( [int(line.split()[-2].replace("CAP",""))]*6 )                
+                                except ValueError:
+                                        print "Could not convert", line.split()[-2].replace("CAP","")
                 adc_match = search("ADC", line)
                 if adc_match:
                         data["adc"].append([int(i) for i in line.split()[-6:]][::-1]) # This has to be reversed because the SPY prints the links out in reverse order.
