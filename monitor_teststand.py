@@ -18,7 +18,6 @@ import smtplib		# For emailing.
 from email.mime.text import MIMEText		# For emailing.
 import pexpect
 
-N_ACTIVE_LINKS = 7
 
 # CLASSES:
 class check:
@@ -38,7 +37,11 @@ class check:
 # /CLASSES
 
 # FUNCTIONS:
-## Log parsing:
+
+## ------------------
+## -- Log parsing: --
+## ------------------
+
 def parse_log(log_raw):
 	# Create a dictionary, where the key is the section name and the value is a list of lines in the section:
 	log_parsed = {}
@@ -67,30 +70,43 @@ def parse_log(log_raw):
 
 	return log_parsed
 
-## Checks:
-def check_temps(ts,log_parsed):
+
+## -------------------------
+## -- Check temperatures: --
+## -------------------------
+
+def check_temps(ts, ts_status, log_parsed):
 	result = False
 	error = ""
 	try:
 		temps = []
 		for ix, i in enumerate(ts.fe_crates):
 			for j in ts.qie_slots[ix]:
-				if "ERROR" not in log_parsed["temperatures"]["registers"]["Crate {0} -> RM {1}".format(i,j)]:
-					temps.append(float(log_parsed["temperatures"]["registers"]["Crate {0} -> RM {1}".format(i,j)]))
-				else:
+                                temp = log_parsed["temperatures"]["registers"]["Crate {0} -> RM {1}".format(i,j)]
+				if "ERROR" in temp or temp.strip() == "":
 					temps.append(-1)
-
-		if max(temps) < 65:
-			result = True
-		else:
-			for ix, i in enumerate(ts.fe_crates):
-				for j in ts.qie_slots[ix]:
-					error += "ERROR: Crate {0} -> RM {1} -> {2}\n".format(i,j,log_parsed["registers"]["registers"]["Crate {0} -> RM {1}".format(i,j)])
-
+				else:
+                                        try:
+                                                temp_f = float(temp)
+                                                temps.append(temp_f)
+                                                # Also check what the target temperature was:
+                                                if abs(temp_f - ts_status.controlcards.peltier_targettemperature_f) > ts_status.controlcards.peltier_adjustment_f:
+                                                        error += "ERROR: Temperature deviation in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,ts_status.controlcards.peltier_targettemperature_f, temp)
+                                                        #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
+                                                else:
+                                                        result = True
+                                        except ValueError:
+                                                error += "No valid temperature for crate {0}, slot {1}: {2}\n".format(i,j,temp)
+                                                temps.append(-1)
+                                        
 	except Exception as ex:
 		error += str(ex)
 		print ex
 	return check(result=result, error=error.strip(), scale=1)
+
+## ----------------------
+## -- Check LHC clock: --
+## ----------------------
 
 def check_clocks(log_parsed):
 	result = False
@@ -108,10 +124,11 @@ def check_clocks(log_parsed):
 		print ex
 	return check(result=result, error=error.strip(), scale=1)
 
+## ---------------------------
+## -- Obsolete check for HE --
+## ---------------------------
+
 def check_ngccm_static_regs(log_parsed):
-	# This does not seem to be implemented for HE. 
-	# ONES: 0x5050505
-	# ZEROES: 0x7070707
 	# Do this stuff for the igloo and bridge
 	result_zeroes = False
 	result_ones = False
@@ -140,21 +157,22 @@ def check_ngccm_static_regs(log_parsed):
 ## -- Check status of the links --
 ## -------------------------------
 
-def check_link_number(log_parsed):
+def check_link_number(ts_status,log_parsed):
 	result = False
 	error = ""
 	try:
 		links = log_parsed["links"]["links"]
-		if len(links) == N_ACTIVE_LINKS:
+		if len(links) == ts_status.links.n_active_links:
 			result = True
 		else:
-			error += "ERROR: There weren't {0} active links! The links are {1}.\n".format(N_ACTIVE_LINKS, links)
+			error += "ERROR: There weren't {0} active links! The links are {1}.\n".format(ts_status.links.n_active_links, links)
 	except Exception as ex:
 		error += str(ex)
 		print ex
 	return check(result=result, error=error.strip(), scale=0)
 
 def check_link_orbits(log_parsed):
+        # This should also be already checked in the other linkstatus function
 	result = False
 	error = ""
 	try:
@@ -165,12 +183,15 @@ def check_link_orbits(log_parsed):
 			result = True
 		else:
 			error += "ERROR: The link orbit rates are wrong! Look: {0}.\n".format(orbits)
+        except ValueError as vex:
+                error += "Probably could not convert the orbit rate to float.\n" + str(vex)
+                print vex
 	except Exception as ex:
 		error += str(ex)
 		print ex
 	return check(result=result, error=error.strip(), scale=0)
 
-def check_link_adc(log_parsed):
+def check_link_adc(ts_status, log_parsed):
 	result = False
 	error = ""
 	try:
@@ -178,8 +199,7 @@ def check_link_adc(log_parsed):
 		adcs = []
 		for link in adcs_per_link:
 			adcs.extend(link)
-		# TODO: tune this threshold, will depend on whether we read out CM
-		if (min(adcs) > 0 and max(adcs) < 50):
+		if (min(adcs) > 0 and max(adcs) < ts_status.links.maxADC):
 			result = True
 		else:
 			error += "ERROR: The pedestal values are wrong! Look: {0}.\n".format(adcs)
@@ -202,7 +222,7 @@ def check_link_status(statData):
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
                                 problemType = 1
-                        if not statData[link]['orbitRates'] == 1.12e+01:
+                        if not statData[link]['orbitRates'] == "1.12e+01":
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
                                 if problemType==0: problemType=2
@@ -226,6 +246,88 @@ def check_link_status(statData):
         return linksGood, problemLinks, problemType
 
 
+## ------------------------------
+## -- Check various registers: --
+## ------------------------------
+
+def check_qie_registers(qie_status, log_parsed):
+        result = False
+        error = []
+        for crate_slot, qie_registers in qie_status.iteritems():
+                crate, slot = crate_slot
+                for iqie, qie_register in enumerate(qie_registers):
+                        # do the checks on all qie registers
+                        regs = [reg for reg in dir(qie_register) if not reg.startswith("__")]
+                        for reg in regs:
+                                # Find it in the logs, and check whether it matches
+                                log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, iqie, reg)]
+                                exp_reg = getattr(qie_register, reg)
+                                if exp_reg != int(log_reg):
+                                        # Probably a SEU
+                                        error.append("QIE error: get HE{0}-{1}-QIE{2}_{3} returned {4}, we expected {5}.".format(crate, slot, iqie, reg, log_reg, exp_reg))
+                                        result = False
+                                        
+        return check(result=result, error="\n".join(error), scale=0)
+
+def check_controlcard_registers(controlcard_status, log_parsed):
+        result = False
+        error = []
+        for crate_slot, cc_register in controlcard_status.iteritems():
+                crate, slot = crate_slot
+                regs = [reg for reg in dir(cc_register) if not reg.startswith("__")]
+                for reg in regs:
+                        # Find it in the logs, and check whether it matches
+                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}_{2}".format(crate, slot, reg)]
+                        exp_reg = getattr(cc_register, reg)
+                        if reg.endswith("_f"):
+                                # we are dealing with a float, so should not require exact match
+                                # For now this is just the biasmon
+                                if abs(exp_reg - float(log_reg)) > 1.:
+                                        error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
+                                        result = False
+                        else:
+                                if exp_reg != int(log_reg):
+                                        # Probably a SEU, these are the peltier registers
+                                        error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
+                                        result = False
+                                        
+        return check(result=result, error="\n".join(error), scale=0)
+
+#TODO: protect against "NACK" errors
+def check_bridge_registers(bridge_status, log_parsed):
+        result = False
+        error = []
+        for crate_slot, bridge_registers in bridge_status.iteritems():
+                crate, slot = crate_slot
+                for ib, bridge_register in enumerate(bridge_registers):
+                        # do the checks on all bridge registers
+                        regs = [reg for reg in dir(bridge_register) if not reg.startswith("__")] 
+                        for reg in regs:
+                                if "COUNTER" in reg:
+                                        # Check that it changed, and update the value
+                                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-B_{3}".format(crate, slot, ib, reg)]
+                                        prev_reg = getattr(bridge_register, reg)
+                                        if "ERROR" in log_reg:
+                                                pass
+                                        else:
+                                                try:
+                                                        log_reg_i = int(log_reg)
+                                                except ValueError:
+                                                        pass
+                                else:
+                                        pass
+        return check(result=result, error="\n".join(error), scale=0)
+
+def check_registers(ts_status, log_parsed):
+        # Check the qies
+        check_qies = check_qie_registers(ts_status.qies, log_parsed)
+        check_controlcards = check_controlcard_registers(ts_status.controlcards, log_parsed)
+        return [check_qies, check_controlcards]
+
+## ------------------
+## -- Check power: --
+## ------------------
+
 def check_power(log_parsed):
 	# Cannot test at FNAL
 	result = False
@@ -243,6 +345,11 @@ def check_power(log_parsed):
 		print ex
 	return check(result=result, error=error.strip(), scale=2)
 
+
+## -------------------------
+## -- Check control link: --
+## -------------------------
+
 def check_cntrl_link(log_parsed):
 	result = False
 	error = ""
@@ -259,7 +366,11 @@ def check_cntrl_link(log_parsed):
 		print ex
 	return check(result=result, error=error.strip(), scale=1)
 
-## Actions:
+
+## ----------------------
+## -- Various actions: --
+## ----------------------
+
 def send_email(subject="", body=""):
 	msg = MIMEText(body)
 	msg['Subject'] = subject
@@ -276,6 +387,7 @@ def send_email(subject="", body=""):
 #			"tullio.grassi@gmail.com",
 #			"yw5mj@virginia.edu",
 #			"whitbeck.andrew@gmail.com",
+#                        "pastika@fnal.gov",
 			"nadja.strobbe@gmail.com"
 		],
 		msg.as_string()
@@ -318,15 +430,29 @@ def power_cycle(n=10):
 		log += "[!!] Power cycle aborted. The OVP wasn't 11 V.\n"
 	return log
 
+# This is probably not useful for the radiation test
 def disable_qie(ts, crate=1):
 	cmds = [
 		"put HE{0}-bkp_pwr_enable 0".format(crate),
-	]
+                ]
 	return ngccm.send_commands_parsed(ts.ngfec_port, cmds)["output"]
 
 # /FUNCTIONS
 
+## ---------------------------
+## -- Main monitor function --
+## ---------------------------
+
 def monitor_teststand(ts, ts_status, logpath, link_status):
+        """
+        Monitor the current state of the teststand, and send alerts if something is wrong.
+        
+        Arguments:
+        ts -- a teststand object
+        ts_status -- a TestStandStatus object
+        logpath -- the path to the log file
+        link_status -- the dictionary with link information
+        """
 
 	# Make sure the log file actually exists
 	if not os.path.isfile(logpath):
@@ -377,15 +503,17 @@ Thanks!!
 		# Perform checks:
 		error_log = ""
 		checks = []
-		checks.append(check_temps(ts,parsed))
+		checks.append(check_temps(ts, ts_status, parsed))
 		checks.append(check_clocks(parsed))
 		#cntrl_link = check_ngccm_static_regs(parsed)
 		#checks.append(cntrl_link)
-		checks.append(check_link_number(parsed))
+		checks.append(check_link_number(ts_status, parsed))
 		checks.append(check_link_orbits(parsed))
+		checks.append(check_link_adc(ts_status, parsed))
 		#checks.append(check_power(parsed))
 		checks.append(check_cntrl_link(parsed))
-		checks.append(check_link_adc(parsed))
+                checks.append(check_registers(ts_status, parsed))
+
 		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
 					
 		# Control link status:
@@ -419,19 +547,19 @@ Thanks!!
 				
 				# Try to fix the major problems immediately
 				# Power cycle if any have scale 2 or greater:
-				if [c for c in critical if c.scale > 1]:
+				#if [c for c in critical if c.scale > 1]:
 					#power_log = power_cycle()
 					#power_log = setup_157()
-					power_log = str(disable_qie(ts))
+					#power_log = str(disable_qie(ts))
 					#email_body += "A power cycle was triggered. Here's how it went:\n\n"
 					#email_body += "A power enable cycle was triggered. Here's how it went:\n\n"
-					email_body += "A QIE card disable was triggered. Here's how it went:\n\n"
-					email_body += power_log
-					email_body += "\n"
+					#email_body += "A QIE card disable was triggered. Here's how it went:\n\n"
+					#email_body += power_log
+					#email_body += "\n"
 					#error_log += "A power cycle was triggered. Here's how it went:\n\n"
 					#error_log += "A power enable cycle was triggered. Here's how it went:\n\n"
-					error_log += "A QIE card disable was triggered. Here's how it went:\n\n"
-					error_log += power_log
+					#error_log += "A QIE card disable was triggered. Here's how it went:\n\n"
+					#error_log += power_log
 							
 				# Send email:
 				email_body += "\nHave a nice day!"

@@ -1,20 +1,27 @@
 ## Put a class here to hold the expected values for the links and registers
 ## Also keep track of registers that are expected to change
 
+import hcal_teststand.hcal_teststand as hc
 
 class LinkParameters:
     """A class to hold input information for the links."""
 
     def __init__(self, tstype="HEfnal"):
+        """Initialize the Link parameters. 
+OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.Auto_Realign = 1
         self.OnTheFlyAlignment = 0
         self.CDRreset = 0
         self.GTXreset = 1
         if tstype == "HEfnal":
             self.OrbitDelay = 44
+            self.n_active_links = 7
+            self.maxADC = 50
         else:
             # Not implemented yet
             self.OrbitDelay = 50
+            self.n_active_links = 8
+            self.maxADC = 10
 
 
 class QIERegisters:
@@ -22,6 +29,7 @@ class QIERegisters:
 and to store the current state of the ones we expect to change."""
 
     def __init__(self, tstype="HEfnal"):
+        """Initialize the QIERegisters object. For now it assumes that these are QIE11s"""
         self.CapID0pedestal = 0
         self.CapID1pedestal = 0
         self.CapID2pedestal = 0
@@ -46,7 +54,9 @@ class IglooRegisters:
     """ A class to hold the expected igloo registers, 
 and to store the current state of the ones we expect to change."""
     
-    def __init__(self, tstype="HEfnal"):
+    def __init__(self, nqies=48):
+        """Initialize the igloo registers."""
+        # These are the fixed ones
         self.FPGA_MINOR_VERSION = 5 
         self.FPGA_MAJOR_VERSION = 0
         self.ZerosRegister = 0
@@ -59,22 +69,26 @@ and to store the current state of the ones we expect to change."""
         self.StatusReg_BRIDGE_SPARE = 0
         self.StatusReg_QieDLLNoLock = 0
         self.StatusReg_zero = 0
-        self.WTE_count = 0
-        self.Clk_count = 0
-        self.RST_QIE_count = 0
-        self.CapIdErrLink1_count = 0 # If not we need to check if it increased, or maybe do a reset?
-        self.CapIdErrLink2_count = 0
-        self.CapIdErrLink3_count = 0
         self.CntrReg_WrEn_InputSpy = 0
         self.CntrReg_OrbHistoRun = 0
         self.CntrReg_CImode = 0
         self.CntrReg_InternalQIER = 0
         self.CntrReg_OrbHistoClear = 0
-        
-        nqies = 48
-        for _ in range(nqies):
+        self.CapIdErrLink3_count = 0
+
+        for _ in range(int(nqies)):
             setattr(self, 'Qie{0}_ck_ph'.format(_), 0) 
 
+        # These should be increasing
+        self.WTE_count = 0
+        self.Clk_count = 0
+        self.RST_QIE_count = 0
+
+        # These can go up, not necessarily because of radiation, but could be
+        # So we should keep track of it
+        self.CapIdErrLink1_count = 0 
+        self.CapIdErrLink2_count = 0
+        
     def update_WTE_count(self, new_value):
         self.WTE_count = new_value
 
@@ -84,21 +98,75 @@ and to store the current state of the ones we expect to change."""
     def update_RST_QIE_count(self, new_value):
         self.RST_QIE_count = new_value
 
+    def update_CapIdErrLink1_count(self, new_value):
+        self.CapIdErrLink1_count = new_value
+
+    def update_CapIdErrLink2_count(self, new_value):
+        self.CapIdErrLink2_count = new_value
+
+    def update_transients(self, new_values):
+        """Update all transient variables: WTE_count, Clk_count, RST_QIE_count, CapIdErrLink1_count and CapIdErrLink2_count. Expects a dictionary as input with format {'variable name':new_value}"""
+        self.update_WTE_count(new_values["WTE_count"])
+        self.update_Clk_count(new_values["Clk_count"])
+        self.update_RST_QIE_count(new_values["RST_QIE_count"])
+        self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
+        self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
+        
 
 class BridgeRegisters:
     """A class to hold the expected bridge registers, 
 and to store the current state of the ones we expect to change."""
 
-    def __init__(self):
-        pass
+    def __init__(self, tstype="HEfnal"):
+        """Initialize the bridge registers."""
+        # fixed ones
+        self.FIRMVERSION_MAJOR = 1
+        self.FIRMVERSION_MINOR = 1
+        self.ZEROES = 0
+        self.ONES = 0xffffffff
+        self.ONESZEROES = 0xaaaaaaaa
+
+        # These should be increasing
+        self.WTECOUNTER = 0
+        self.CLOCKCOUNTER = 0
+        self.RESQIECOUNTER = 0
+
+        # Not sure if this needs to be monitored
+        #self.SHT_temp_f
+
+    def update_WTECOUNTER(self, new_value):
+        self.WTECOUNTER = new_value
+
+    def update_CLOCKCOUNTER(self, new_value):
+        self.CLOCKCOUNTER = new_value
+
+    def update_RESQIECOUNTER(self, new_value):
+        self.RESQIECOUNTER = new_value
+
+    def update_transients(self, new_values):
+        """Update all transient variables: WTECOUNTER, CLOCKCOUNTER, RESQIECOUNTER. Expects a dictionary as input with format {'variable name':new_value}"""
+        self.update_WTECOUNTER(new_values["WTECOUNTER"])
+        self.update_CLKCOUNTER(new_values["CLOCKCOUNTER"])
+        self.update_RESQIECOUNTER(new_values["RESQIECOUNTER"])
 
 
 class ControlCardRegisters:
     """A class to hold the information from the SiPM control card. """
 
-    def __init__(self):
-        pass
-
+    def __init__(self, nqies=48):
+        self.peltier_adjustment_f = 0.25
+        self.peltier_control = 1
+        self.peltier_stepseconds = 0x384
+        self.peltier_targettemperature_f = 22.0
+        #self.PeltierVoltage_f = 
+        #self.PeltierCurrent_f = 
+        #self.BVin_f = 
+        #self.Vin_f = 
+        #self.Vt_f =
+        #self.Vdd_f =
+        for i in xrange(int(nqies)):
+            setattr(self, "biasmon{0}_f".format(i), 70.0)
+            #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
 
 
@@ -107,6 +175,38 @@ class TestStandStatus:
 along with the current state of registers 
 that are expected to change"""
 
-    def __init__(self, tstype="HEfnal"):
-        self.consts = {"Links":LinkParameters(tstype)}
-        self.transients = {}
+    def __init__(self, ts):
+
+        # Check whether a teststand status was provided
+        if not isinstance(ts, hc.teststand):
+            raise TypeError("You should create the TestStandStatus object with a teststand object!!")
+
+        self.tstype = ts.name
+        self.nqies = ts.nqies
+
+        # Store the links, for now one object, so assumes same orbitdelay
+        self.links = LinkParameters(self.tstype)
+
+        # Store the QIE information, put them in a list per crate, slot combo
+        self.qies = {}
+        for icrate, crate in enumerate(ts.fe_crates):
+            for slot in ts.qie_slots[icrate]:
+                self.qies[crate, slot] = [QIERegisters(self.tstype) for _ in range(ts.nqies)]
+
+        # Store the igloo information
+        self.igloos = {}
+        for icrate, crate in enumerate(ts.fe_crates):
+            for slot in ts.qie_slots[icrate]:
+                self.igloos[crate, slot] = [IglooRegisters(self.nqies) for _ in range(ts.qie_cards_per_slot)]
+
+        # Store the bridge information
+        self.bridges = {}
+        for icrate, crate in enumerate(ts.fe_crates):
+            for slot in ts.qie_slots[icrate]:
+                self.bridges[crate, slot] = [BridgeRegisters(self.tstype) for _ in range(ts.qie_cards_per_slot)]
+
+        # Store the control card information
+        self.controlcards = {}
+        for icrate, crate in enumerate(ts.fe_crates):
+            for slot in ts.qie_slots[icrate]:
+                self.controlcards[crate,slot] = ControlCardRegisters(self.nqies)
