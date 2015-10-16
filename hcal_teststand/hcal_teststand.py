@@ -23,7 +23,6 @@ class teststand:
 			
 			# Extract teststand info from the teststand configuration file:
 			ts_info = install.parse_ts_configuration(f)[self.name]
-
 			if fe_crate:
 				if isinstance(fe_crate, int):
 					fe_crate = [fe_crate]
@@ -136,7 +135,11 @@ class teststand:
 						slot=fe_slot,
 						control_hub=control_hub,
 					)
-			self.nqies = int(self.qie_cards_per_slot) * int(self.qies_per_card)
+			#self.nqies = int(self.qie_cards_per_slot) * int(self.qies_per_card)
+                        self.qiecards = {}
+                        for i, crate in enumerate(self.fe_crates):
+                                for j, slot in enumerate(self.qie_slots[i]):
+                                        self.qiecards[(crate, slot)] = self.qie_cards_per_slot[i][j]
 
 			self.uhtr = {}
 			for slot in self.uhtr_slots[0]:

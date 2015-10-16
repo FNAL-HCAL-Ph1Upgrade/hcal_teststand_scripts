@@ -24,7 +24,7 @@ def parse_ts_configuration(f="teststands.txt"):		# This function must be compati
 		"glib_slots": "iL",
 		"fe_crates": "il",
 		"qie_slots": "iL",
-		"qie_cards_per_slot": "i",
+		"qie_cards_per_slot": "iM",
 		"qies_per_card": "i"
 	}
 	teststand_info = {}
@@ -56,7 +56,7 @@ def parse_ts_configuration(f="teststands.txt"):		# This function must be compati
 
 def parse_config_var(raw=None, var_type="s"):
 	# Parse:
-	if "l" not in var_type.lower():
+	if "l" not in var_type.lower() and "m" not in var_type.lower():
 		if "s" in var_type:
 			return str(raw)
 		elif "i" in var_type:
@@ -78,6 +78,25 @@ def parse_config_var(raw=None, var_type="s"):
 						result.append([int(i) for i in l.split(",")])
 				else:
 					result.append([])
+                        return result
+                elif "M" in var_type:
+			lists = raw.split(";")
+			result = []
+			for l in lists:
+				if l:
+                                        sublists = l.split("|")
+                                        subresult = []
+                                        for m in sublists:
+                                                if m:
+                                                        if "s" in var_type:
+                                                                subresult.append([str(i).strip() for i in l.split(",")])
+                                                        elif "i" in var_type:
+                                                                subresult.append([int(i) for i in l.split(",")])
+                                                else:
+                                                        subresult.append([])
+                                        result.append(subresult)
+				else:
+					result.append([])                        
 		#	# Let a semicolon be at the end of the last list without adding an empty list:
 		#	if not result[-1]:
 		#		del result[-1]
