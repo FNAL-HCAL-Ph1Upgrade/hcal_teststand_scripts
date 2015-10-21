@@ -209,7 +209,7 @@ that are expected to change"""
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate,slot]:
-                    self.igloos[crate, slot, qiecard] = IglooRegisters(qiecard, ts.qies_per_card)
+                    self.igloos[crate, slot, qiecard] = IglooRegisters(qiecard, ts.qies_per_card, self.tstype)
 
         # Store the bridge information
         self.bridges = {}
