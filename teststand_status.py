@@ -18,7 +18,7 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
             self.n_active_links = 6
             self.maxADC = 50
             self.maxAveADC = 10
-        elif type == "HEcharm":
+        elif tstype == "HEcharm":
             self.OrbitDelay = 33
             self.n_active_links = 4
             self.maxADC = 10

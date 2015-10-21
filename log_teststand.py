@@ -513,7 +513,6 @@ if __name__ == "__main__":
 	t0_long = time()
 	nfailed_tries = 0
 	while z == True:
-		ntries += 1
 		dt = time() - t0
 		dt_long = time() - t0_long
 		try:
