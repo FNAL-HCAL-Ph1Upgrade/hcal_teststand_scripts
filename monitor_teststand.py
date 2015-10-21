@@ -510,7 +510,7 @@ def send_email(subject="", body=""):
 #			"tullio.grassi@gmail.com",
 #			"yw5mj@virginia.edu",
 #			"whitbeck.andrew@gmail.com",
-#                        "pastika@fnal.gov",
+                        "pastika@fnal.gov",
 			"nadja.strobbe@gmail.com"
 		],
 		msg.as_string()
