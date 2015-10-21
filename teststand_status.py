@@ -160,7 +160,7 @@ and to store the current state of the ones we expect to change."""
 class ControlCardRegisters:
     """A class to hold the information from the SiPM control card. """
 
-    def __init__(self, qiecards, qies_per_card):
+    def __init__(self, tstype):
         self.peltier_adjustment_f = 0.25
         self.peltier_control = 1
         self.peltier_stepseconds = 0x384
@@ -171,9 +171,9 @@ class ControlCardRegisters:
         #self.Vin_f = 
         #self.Vt_f =
         #self.Vdd_f =
-        for i in qiecards:
-            for j in xrange(qies_per_card):
-                setattr(self, "biasmon{0}_f".format((i-1)*qies_per_card+j+1), 70.0)
+        if tstype == "HEfnal" or tstype == "HEcharm":
+            for i in xrange(1,49):
+                setattr(self, "biasmon{0}_f".format(i), 70.0)
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
 
@@ -220,4 +220,4 @@ that are expected to change"""
         self.controlcards = {}
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
-                self.controlcards[crate,slot] = ControlCardRegisters(ts.qiecards[crate,slot], ts.qies_per_card)
+                self.controlcards[crate,slot] = ControlCardRegisters(self.tstype)
