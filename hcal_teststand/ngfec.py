@@ -14,7 +14,7 @@ import meta
 
 # VARIABLES:
 cmds_default = ["quit"]
-port_default = 4242
+port_default = 4342
 # /VARIABLES
 
 # CLASSES:
@@ -46,7 +46,9 @@ def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_defaul
 				out.write(cmds_str)
 		
 		# Prepare the ngfec arguments:
-		ngfec_cmd = 'ngFEC.exe -z -c -p {0}'.format(port)
+		ngfec_cmd = 'ngFEC.exe -t -c -p {0}'.format(port)
+		if not script:
+			ngfec_cmd = 'ngFEC.exe -t -z -c -p {0}'.format(port)
 		if control_hub != None:
 			ngfec_cmd += " -H {0}".format(control_hub)
 		
@@ -74,10 +76,10 @@ def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_defaul
 			for i, c in enumerate(cmds):
 				# Deterimine how long to wait until the first result is expected:
 				if i == 0:
-					timeout = max([30, int(0.0075*len(cmds))])
+					timeout = max([60, int(0.0075*len(cmds))])
 #					print i, c, timeout
 				else:
-					timeout = 30		# pexpect default
+					timeout = 60		# pexpect default
 #					print i, c, timeout
 #				print i, c, timeout
 				

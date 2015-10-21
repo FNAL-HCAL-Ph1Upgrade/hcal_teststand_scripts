@@ -420,8 +420,8 @@ def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be 
 	commands = []
 	for slot in ts.qie_slots[icrate]:
 		commands.append("get HE{0}-{1}-temperature_f".format(crate,slot))
-		commands.append("wait")
-	raw_output = ngccm.send_commands(ts, commands)["output"]
+		#commands.append("wait")
+	raw_output = ngfec.send_commands(ts=ts, cmds=commands, script=True)
 
 	temp = []
 	log = []
@@ -429,13 +429,13 @@ def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be 
 		temp.append("")
 		log.append("")
 		try:
-			match = search("get HE{0}-{1}-temperature_f # ([\d\.]+)".format(crate, slot), raw_output)
-			temp[i] = float(match.group(1))
+			#match = search("get HE{0}-{1}-temperature_f # ([\d\.]+)".format(crate, slot), raw_output)
+			temp[i] = float(raw_output[i]["result"])
 		except Exception as ex:
 			log[i] += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, commands[i], ex)
-			match = search("\n(.*ERROR!!.*)\n", raw_output)
-		if match:
-			log[i] += 'The data string was "{0}".'.format(match.group(0).strip())
+			match = search("\n(.*ERROR!!.*)\n", raw_output[i]["result"])
+			if match:
+				log[i] += 'The data string was "{0}".'.format(match.group(0).strip())
 	return {
 		"temp":	temp,
 		"log":	log,

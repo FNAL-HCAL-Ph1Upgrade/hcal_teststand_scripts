@@ -12,7 +12,7 @@ from ..hcal_teststand import teststand
 from ..utilities import time_string, logger
 from ..mapping import *
 from ..qie import get_unique_id
-import ROOT
+#import ROOT
 # /IMPORTS
 
 # VARIABLES:

@@ -11,7 +11,7 @@ import hcal_teststand
 import qie
 import meta
 import ngfec
-from ROOT import *
+#from ROOT import *
 from time import sleep
 import os
 
@@ -186,14 +186,13 @@ def send_commands(ts=None, crate=None, slot=None, ip=None, control_hub=None, cmd
                 cmds_str = ""
                 for c in cmds:
                         cmds_str += "{0}\n".format(c)
-        
+
                 # Send the commands:
                 for uhtr_ip, crate_slot in ips.iteritems():
                         # Prepare the uHTRtool arguments:
                         uhtr_cmd = "uHTRtool.exe {0}".format(uhtr_ip)
                         if control_hub:
                                 uhtr_cmd += " -o {0}".format(control_hub)
-                
                         # Send commands and organize results:
                         if script:
                                 with open("uhtr_script.cmd", "w") as out:
@@ -342,6 +341,7 @@ def parseLinkStatus(raw_link_output, verbose=True):
         # output_status = linkStatus(ts)['output']
         output_status = raw_link_output
         lines = output_status.split('\n')
+
         # beginning of status info
         lines = lines[lines.index(' > status')+1:]
         # end of status info
@@ -420,6 +420,79 @@ def parseLinkStatus(raw_link_output, verbose=True):
     
         return statData, "\n".join(lines)
     
+
+## ------------------------------
+## -- Get and parse histo data --
+## ------------------------------
+
+# calls the uHTRs histogramming functionality
+# ip - ip address of the uHTR (e.g. teststand("904").uhtr_ips[0])
+# n_orbits  - number of orbits to integrate over
+# sepCapID - whether to distinguish between different cap IDs
+# fileName - output file name
+
+def get_histos(ts, n_orbits=5000, sepCapID=0, file_out_base="", script = False):
+        """ 
+        Take histogram data for all links in the teststand.
+        """
+
+        output = []
+        for be, uhtr_ in ts.uhtrs.iteritems():
+                output.append((uhtr_,
+                               get_histo(ts=ts,
+					 crate=uhtr_.crate,
+					 uhtr_slot=uhtr_.slot,
+					 ip=uhtr_.ip,
+					 control_hub=ts.control_hub,
+					 script=script,
+					 n_orbits=n_orbits,
+					 sepCapID=sepCapID,
+					 file_out=file_out_base+"_{0}.root".format(uhtr_.ip)
+					 )[uhtr_.crate,uhtr_.slot],
+			       file_out_base+"_{0}".format(uhtr_.ip)
+			       )
+                              )
+	return output
+
+def get_histo(ts, crate, uhtr_slot, ip, control_hub, script, n_orbits=5000, sepCapID=0, file_out=""):
+        # Set up some variables:
+        log = ""
+        if not file_out:
+                file_out = "histo_uhtr{0}.root".format(uhtr_slot)
+        
+        # Histogram:
+        cmds = [
+                '0',
+                'link',
+                'histo',
+                'integrate',
+                '{0}'.format(n_orbits),                # number of orbits to integrate over
+                '{0}'.format(sepCapID),
+                '{0}'.format(file_out),
+                '0',
+                'quit',
+                'quit',
+                'exit',
+                '-1'
+        ]
+        result = send_commands(ts=ts, crate=crate, slot=uhtr_slot, cmds=cmds, ip=ip, control_hub=control_hub, script=script)
+        return result
+
+def read_histo(file_in=""):
+        result = []
+        tf = TFile(file_in, "READ")
+        tc = TCanvas("tc", "tc", 500, 500)
+        for i_link in range(24):
+                        for i_ch in range(4):
+                                th = tf.Get("h{0}".format(4*i_link + i_ch))
+                                info = {}
+                                info["link"] = i_link
+                                info["channel"] = i_ch
+                                info["mean"] = th.GetMean()
+                                result.append(info)
+        return result
+
+
 
 def get_info(ts=None, crate=None, slot=None, ip=None, control_hub=None):                # Returns dictionaries of information about the uHTRs, such as the FW versions.
         # Arguments and variables:
@@ -701,50 +774,6 @@ def get_links_from_map(ts=None, crate=None, slot=None, end="be", i_link=None, f=
         else:
                 print "ERROR (uhtr.get_links_from_map): \"end\" must be either \"fe\" or \"be\"."
                 return False
-
-# calls the uHTRs histogramming functionality
-# ip - ip address of the uHTR (e.g. teststand("904").uhtr_ips[0])
-# n_orbits  - number of orbits to integrate over
-# sepCapID - whether to distinguish between different cap IDs
-# (currently I think this means you can only read out range 0)
-# fileName - output file name
-def get_histo(ts=False,crate=None, uhtr_slot=-1, n_orbits=1000, sepCapID=1, file_out=""):
-        # Set up some variables:
-        log = ""
-        if not file_out:
-                file_out = "histo_uhtr{0}.root".format(uhtr_slot)
-        
-        # Histogram:
-        cmds = [
-                '0',
-                'link',
-                'histo',
-                'integrate',
-                '{0}'.format(n_orbits),                # number of orbits to integrate over
-                '{0}'.format(sepCapID),
-                '{0}'.format(file_out),
-                '0',
-                'quit',
-                'quit',
-                'exit',
-                '-1'
-        ]
-        result = send_commands(ts=ts,crate=crate, slot=uhtr_slot, cmds=cmds)
-        return file_out
-
-def read_histo(file_in=""):
-        result = []
-        tf = TFile(file_in, "READ")
-        tc = TCanvas("tc", "tc", 500, 500)
-        for i_link in range(24):
-                        for i_ch in range(4):
-                                th = tf.Get("h{0}".format(4*i_link + i_ch))
-                                info = {}
-                                info["link"] = i_link
-                                info["channel"] = i_ch
-                                info["mean"] = th.GetMean()
-                                result.append(info)
-        return result
 
 # Perform basic uHTR commands:
 ## Returning raw output:

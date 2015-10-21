@@ -52,7 +52,7 @@ def parse_log(log_raw):
 			"registers": {},
 			"lines": [line for line in lines[1:] if line],
 		}
-	
+
 	# Format registers into dictionaries:
 	for section, values in log_parsed.iteritems():
 		for value in values["lines"]:
@@ -64,10 +64,18 @@ def parse_log(log_raw):
 	if "links" in log_parsed.keys():
 		if log_parsed["links"]:
 			# Turn the list of links into a python list.
-			log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][0].split("links:")[-1])
-			log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][1].split("orbit:")[-1])
-			log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][2].split("meanADC:")[-1])
-
+			# find the line with "links:"
+			linkindex = -1
+			for il, l in enumerate(log_parsed["links"]["lines"]):
+				if "links:" in l:
+					linkindex = il
+					break
+			if linkindex != -1:		
+				log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex].split("links:")[-1])
+				log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+1].split("orbit:")[-1])
+				log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+2].split("meanADC:")[-1])
+			else:
+				print "No link information from the spy!"
 	return log_parsed
 
 
@@ -89,10 +97,14 @@ def check_temps(ts, ts_status, log_parsed):
                                         try:
                                                 temp_f = float(temp)
                                                 temps.append(temp_f)
+						tempdiff = abs(temp_f - ts_status.controlcards[i,j].peltier_targettemperature_f)
                                                 # Also check what the target temperature was:
-                                                if abs(temp_f - ts_status.controlcards.peltier_targettemperature_f) > ts_status.controlcards.peltier_adjustment_f:
-                                                        error += "ERROR: Temperature deviation in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,ts_status.controlcards.peltier_targettemperature_f, temp)
+                                                if tempdiff > 1.5*ts_status.controlcards[i,j].peltier_adjustment_f:
+                                                        error += "ERROR: Temperature deviation in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,ts_status.controlcards[i,j].peltier_targettemperature_f, temp)
                                                         #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
+							if tempdiff > 3:
+								send_email("HE radiation test: Temperature deviation",
+									   "Measured temperature was {0}".format(temp_f))
                                                 else:
                                                         result = True
                                         except ValueError:
@@ -199,10 +211,14 @@ def check_link_adc(ts_status, log_parsed):
 		adcs = []
 		for link in adcs_per_link:
 			adcs.extend(link)
-		if (min(adcs) > 0 and max(adcs) < ts_status.links.maxADC):
+		if (min(adcs) > 0 and max(adcs) < ts_status.links.maxADC
+		    and sum(adcs)/len(adcs) < ts_status.links.maxAveADC):
 			result = True
 		else:
 			error += "ERROR: The pedestal values are wrong! Look: {0}.\n".format(adcs)
+	except ValueError as vex:
+		error += "Probably could not convert the adc counts to float.\n" + str(vex)
+		print vex
 	except Exception as ex:
 		error += str(ex)
 		print ex
@@ -218,7 +234,8 @@ def check_link_status(statData):
         problemType = 0  
         for link in statData:
                 if statData[link]['On']:
-                        if statData[link]['badAlign']>10:
+                        if statData[link]['badAlign']>100:
+				# Put it rather high, seems like there are some link issues
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
                                 problemType = 1
@@ -251,77 +268,184 @@ def check_link_status(statData):
 ## ------------------------------
 
 def check_qie_registers(qie_status, log_parsed):
-        result = False
+        result = True
         error = []
+	scale = 0
         for crate_slot_qie, qie_register in qie_status.iteritems():
                 crate, slot, qienum = crate_slot_qie
                 # do the checks on all qie registers
                 regs = [reg for reg in dir(qie_register) if not reg.startswith("__")]
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
-                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, qienum, reg)]
-                        exp_reg = getattr(qie_register, reg)
-                        if exp_reg != int(log_reg,0):
-                                # Probably a SEU
-                                error.append("QIE error: get HE{0}-{1}-QIE{2}_{3} returned {4}, we expected {5}.".format(crate, slot, qienum, reg, log_reg, exp_reg))
-                                result = False
-                                        
-        return check(result=result, error="\n".join(error), scale=0)
+			try:
+				log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, qienum, reg)]
+				if "ERROR" in log_reg or "NACK" in log_reg:
+					result = False
+					scale = 1
+					error.append("QIE register ( HE{0}-{1}-QIE{2}_{3}) contained error: {4} ".format(crate, slot, qienum, reg, log_reg))
+					continue
+				log_reg_i = int(log_reg,0)
+				exp_reg = getattr(qie_register, reg)
+				if exp_reg != log_reg_i:
+					# Probably a SEU
+					error.append("QIE SEU candidate: get HE{0}-{1}-QIE{2}_{3} returned {4}, we expected {5}.".format(crate, slot, qienum, reg, log_reg, exp_reg))
+					result = False
+			except KeyError:
+				result = False
+				scale = 1
+				error.append("QIE register HE{0}-{1}-QIE{2}_{3} could not be found in the log.".format(crate, slot, qienum, reg))
+			except ValueError:
+				result = False
+				scale = 1
+				error.append("Could not convert {0} to integer (QIE HE{1}-{2}-QIE{3}_{4})".format(log_reg, crate, slot, qienum, reg))
+
+        return check(result=result, error="\n".join(error), scale=scale)
 
 def check_controlcard_registers(controlcard_status, log_parsed):
-        result = False
+        result = True
         error = []
+	scale = 0
         for crate_slot, cc_register in controlcard_status.iteritems():
                 crate, slot = crate_slot
                 regs = [reg for reg in dir(cc_register) if not reg.startswith("__")]
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
-                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
-                        exp_reg = getattr(cc_register, reg)
-                        if reg.endswith("_f"):
-                                # we are dealing with a float, so should not require exact match
-                                # For now this is just the biasmon
-                                if abs(exp_reg - float(log_reg)) > 1.:
-                                        error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
-                                        result = False
-                        else:
-                                if exp_reg != int(log_reg,0):
-                                        # Probably a SEU, these are the peltier registers
-                                        error.append("Control Card error: get HE{0}-{1}_{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
-                                        result = False
-                                        
-        return check(result=result, error="\n".join(error), scale=0)
+			try:
+                            log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
+			    if "NACK" in log_reg and "biasmon" in reg:
+				    error.append("Control Card SEU candidate: get HE{0}-{1}-{2} returned {3}".format(crate, slot, reg, log_reg))
+				    result = False
+                            exp_reg = getattr(cc_register, reg)
+                            if reg.endswith("_f"):
+                                    # we are dealing with a float, so should not require exact match
+                                    # For now this is just the biasmon
+                                    if abs(exp_reg - float(log_reg)) > 1.:
+                                            error.append("Control Card error: get HE{0}-{1}-{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
+                                            result = False
+                            else:
+                                    if exp_reg != int(log_reg,0):
+                                            # Probably a SEU, these are the peltier registers
+                                            error.append("Control Card error: get HE{0}-{1}-{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
+                                            result = False
+                                            
+			except KeyError:
+				result = False
+				scale = 1
+				error.append("Control card register HE{0}-{1}-{2} could not be found in the log.".format(crate, slot, reg))
+			except ValueError:
+				result = False
+				scale = 1
+				error.append("Could not convert {0} to integer or float (Control card HE{1}-{2}-{3})".format(log_reg, crate, slot, reg))
 
-#TODO: protect against "NACK" errors
+        return check(result=result, error="\n".join(error), scale=scale)
+
 def check_bridge_registers(bridge_status, log_parsed):
-        result = False
+        result = True
         error = []
-        for crate_slot, bridge_registers in bridge_status.iteritems():
-                crate, slot = crate_slot
-                for ib, bridge_register in enumerate(bridge_registers):
-                        # do the checks on all bridge registers
-                        regs = [reg for reg in dir(bridge_register) if not reg.startswith("__")] 
-                        for reg in regs:
-                                if "COUNTER" in reg:
-                                        # Check that it changed, and update the value
-                                        log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-B_{3}".format(crate, slot, ib, reg)]
-                                        prev_reg = getattr(bridge_register, reg)
-                                        if "ERROR" in log_reg:
-                                                pass
-                                        else:
-                                                try:
-                                                        log_reg_i = int(log_reg,0)
-                                                except ValueError:
-                                                        pass
-                                else:
-                                        pass
-        return check(result=result, error="\n".join(error), scale=0)
+	scale = 0
+        for crate_slot_card, bridge_register in bridge_status.iteritems():
+                crate, slot, qiecard = crate_slot_card
+		# do the checks on all bridge registers
+                regs = [reg for reg in dir(bridge_register) if (not reg.startswith("__") and not "update" in reg )] 
+                for reg in regs:
+			try:
+				log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-B_{3}".format(crate, slot, qiecard, reg)]
+				if "ERROR" in log_reg or "NACK" in log_reg:
+					result = False
+					scale = 1
+					error.append("Bridge register ( HE{0}-{1}-{2}-B_{3}) contained error: {4} ".format(crate, slot, qiecard, reg, log_reg))
+					continue
+				log_reg_i = int(log_reg,0)
+				if "COUNTER" in reg:
+					# Check that it changed, and update the value
+					prev_reg = getattr(bridge_register, reg)
+					if log_reg_i != prev_reg:
+						# all is OK
+						getattr(bridge_register, "update_{0}".format(reg))(log_reg_i)
+					else:
+						result = False
+						error.append("Bridge error: Counter did not go up: get HE{0}-{1}-{2}-B_{3} returned {4} again.".format(crate, slot, qiecard, reg, log_reg))
+				else:
+					exp_reg = getattr(bridge_register, reg)
+					if log_reg_i != exp_reg:
+						result = False
+						# probably SEU, so no need for an email ;-)
+						error.append("Bridge SEU candidate: get HE{0}-{1}-{2}-B_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
+			except KeyError:
+				result = False
+				scale = 1
+				error.append("Bridge register HE{0}-{1}-{2}-B_{3} could not be found in the log.".format(crate, slot, qiecard, reg))
+			except ValueError:
+				result = False
+				scale = 1
+				error.append("Could not convert {0} to integer (Bridge HE{1}-{2}-{3}-B_{4})".format(log_reg, crate, slot, qiecard, reg))
+				
+        return check(result=result, error="\n".join(error), scale=scale)
 
-def check_registers(ts_status, log_parsed):
+
+def check_igloo_registers(igloo_status, log_parsed, scale):
+        result = True
+        error = []
+	scale = 0
+        for crate_slot_card, igloo_register in igloo_status.iteritems():
+                crate, slot, qiecard = crate_slot_card
+                # do the checks on all igloo registers
+                regs = [reg for reg in dir(igloo_register) if (not reg.startswith("__") and not "update" in reg )] 
+                for reg in regs:
+			# Skip some registers for the sparse log
+			if scale == 0 and "CntrReg" in reg:
+				continue
+			if scale == 0 and "_ck_ph" in reg and not "Qie41_ck_ph" in reg:
+				continue
+			try:
+				log_reg = ""
+				if "_ck_ph" in reg:
+					log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
+				else:
+					log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-i_{3}".format(crate, slot, qiecard, reg)]
+				if "ERROR" in log_reg or "NACK" in log_reg:
+					result = False
+					scale = 1
+					error.append("Igloo register ( HE{0}-{1}-{2}-i_{3}) contained error: {4} ".format(crate, slot, qiecard, reg, log_reg))
+					continue
+    
+				log_reg_i = int(log_reg,0)
+				if "CapIdErrLink1" in reg or "CapIdErrLink2" in reg:
+					# just update it for now
+					getattr(igloo_register, "update_{0}".format(reg))(log_reg_i)
+				elif "count" in reg and not "CapIdErrLink3" in reg:
+					# Check that it changed, and update the value
+					prev_reg = getattr(igloo_register, reg)
+					if log_reg_i != prev_reg:
+						getattr(igloo_register, "update_{0}".format(reg))(log_reg_i)
+					else:
+						result = False
+						error.append("Igloo error: Counter did not go up: get HE{0}-{1}-{2}-i_{3} returned {4} again.".format(crate, slot, qiecard, reg, log_reg))
+				else:
+					exp_reg = getattr(igloo_register, reg)
+					if log_reg_i != exp_reg:
+						result = False
+						# probably SEU
+						error.append("Igloo SEU candidate: get HE{0}-{1}-{2}-i_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
+			except KeyError:
+				result = False
+				scale = 1
+				error.append("Igloo register HE{0}-{1}-{2}-i_{3} could not be found in the log.".format(crate, slot, qiecard, reg))
+			except ValueError:
+				result = False
+				scale = 1
+				error.append("Could not convert {0} to integer (Igloo HE{1}-{2}-{3}-i_{4})".format(log_reg, crate, slot, qiecard, reg))
+				
+        return check(result=result, error="\n".join(error), scale=scale)
+
+
+def check_registers(ts_status, log_parsed, scale):
         # Check the qies        
         check_qies = check_qie_registers(ts_status.qies, log_parsed)
         check_controlcards = check_controlcard_registers(ts_status.controlcards, log_parsed)
-        return [check_qies, check_controlcards]
+	check_bridges = check_bridge_registers(ts_status.bridges, log_parsed)
+	check_igloos = check_igloo_registers(ts_status.igloos, log_parsed, scale)
+        return [check_qies, check_controlcards, check_bridges, check_igloos]
 
 ## ------------------
 ## -- Check power: --
@@ -442,7 +566,7 @@ def disable_qie(ts, crate=1):
 ## -- Main monitor function --
 ## ---------------------------
 
-def monitor_teststand(ts, ts_status, logpath, link_status):
+def monitor_teststand(ts, ts_status, logpath, link_status, scale):
         """
         Monitor the current state of the teststand, and send alerts if something is wrong.
         
@@ -488,12 +612,13 @@ Thanks!!
                                                                                            crate=uhtr_.crate,
                                                                                            slot=uhtr_.slot,
                                                                                            ip=uhtr_.ip,
-                                                                                           control_hub=ts.control_hub))
+                                                                                           control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
                                 send_email(subject="HE radiation test: links reinitialized!", body="Link status after reinitialization is\n{0}".format(raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
 
+	print "Finished checking links"
 
 	# Now open the log and parse it
 	with open(logpath) as f_in:
@@ -511,7 +636,7 @@ Thanks!!
 		checks.append(check_link_adc(ts_status, parsed))
 		#checks.append(check_power(parsed))
 		#checks.append(check_cntrl_link(parsed))
-                checks.extend(check_registers(ts_status, parsed))
+                checks.extend(check_registers(ts_status, parsed, scale))
 
 		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
 					
@@ -524,11 +649,12 @@ Thanks!!
 					
 		# Deal with failed checks:
 		failed = [c for c in checks if not c.result]
-		if failed:				
+		if failed:			
+			print "Found {0} failed checks. Dealing with them now.".format(len(failed))
 			# Set up error log:
 			error_log = ""
 			for c in failed:
-				print c.error
+				print c.result, c.error
 				error_log += "{0} (scale {1})\n".format(c.error, c.scale)
 					
 			# Deal with critical errors:
