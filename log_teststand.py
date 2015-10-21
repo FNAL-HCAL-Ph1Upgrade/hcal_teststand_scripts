@@ -541,7 +541,7 @@ if __name__ == "__main__":
 			print ex
 			if nfailed_tries > 2:
 				print "System is in a bad state, stopping the logger nicely and alerting experts..."
-				monitor_teststand.send_email("Problem for HE Teststand (0)!","Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.".format(ts.name))
+				monitor_teststand.send_email("Problem for HE Teststand {0}!","Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.".format(ts.name))
 				sys.exit()
 			
 
