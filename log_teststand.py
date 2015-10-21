@@ -281,10 +281,11 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 		 "get HE{0}-{1}-Vdd_f".format(crate, slot)
 		 ]
 	cmds3 = []
-        for j in ts.qiecards[crate,slot]:
-                for k in xrange(ts.qies_per_card):
-                        cmds3.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, (j-1)*ts.qies_per_card+1+k))
-                        cmds3.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, (j-1)*ts.qies_per_card+1+k))
+
+	# TODO find a better way to handle this
+        for j in xrange(1,49):
+		cmds3.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
+		cmds3.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
 
 	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
