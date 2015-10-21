@@ -59,10 +59,12 @@ class QIERegisters:
 class IglooRegisters:
     """ A class to hold the expected igloo registers, and to store the current state of the ones we expect to change."""
     
-    def __init__(self, qiecard, qies_per_card):
+    def __init__(self, qiecard, qies_per_card, tstype):
         """Initialize the igloo registers."""
         # These are the fixed ones
         self.FPGA_MINOR_VERSION = 7 
+        if tstype == "HEfnal":
+            self.FPGA_MINOR_VERSION = 5
         self.FPGA_MAJOR_VERSION = 0
         self.ZerosRegister = 0
         self.OnesRegister = 0xffffffff
