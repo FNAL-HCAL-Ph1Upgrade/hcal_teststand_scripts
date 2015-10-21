@@ -100,7 +100,7 @@ mch_ips = 192.168.1.41
 amc13_ips = 192.168.1.95, 192.168.1.94
 qie_slots = 4,5,6,11,13
 
-name = HEfnal
+name = HEcharm
 fe_crates = 1
 be_crates = 52
 ngfec_port = 4342
@@ -114,7 +114,7 @@ qie_cards_per_slot = 1,4  # could be of the form 1,2|2,4;1,2,3 for 2 crates, and
 qies_per_card = 12
 control_hub = localhost
 
-name = HEfnal2
+name = HEfnal
 fe_crates = 1
 be_crates = 41
 ngfec_port = 4242

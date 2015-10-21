@@ -512,6 +512,7 @@ if __name__ == "__main__":
 	t0_long = time()
 	nfailed_tries = 0
 	while z == True:
+		ntries += 1
 		dt = time() - t0
 		dt_long = time() - t0_long
 		try:
@@ -539,8 +540,8 @@ if __name__ == "__main__":
 			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
 			print ex
 			if nfailed_tries > 2:
-				print "System is in a very bad state, stopping the logger nicely and alerting experts..."
-				monitor_teststand.send_email("Critical Problem for HE Radiation Test!","Go check system now! Multiple exceptions were caught. Something is not working properly.")
+				print "System is in a bad state, stopping the logger nicely and alerting experts..."
+				monitor_teststand.send_email("Problem for HE Teststand (0)!","Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.".format(ts.name))
 				sys.exit()
 			
 

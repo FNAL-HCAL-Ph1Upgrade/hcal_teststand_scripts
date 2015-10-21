@@ -103,7 +103,7 @@ def check_temps(ts, ts_status, log_parsed):
                                                         error += "ERROR: Temperature deviation in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,ts_status.controlcards[i,j].peltier_targettemperature_f, temp)
                                                         #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
 							if tempdiff > 3:
-								send_email("HE radiation test: Temperature deviation",
+								send_email("HE teststand ({0}): Temperature deviation".format(ts.name),
 									   "Measured temperature was {0}".format(temp_f))
                                                 else:
                                                         result = True
@@ -315,6 +315,8 @@ def check_controlcard_registers(controlcard_status, log_parsed):
 			    if "NACK" in log_reg and "biasmon" in reg:
 				    error.append("Control Card SEU candidate: get HE{0}-{1}-{2} returned {3}".format(crate, slot, reg, log_reg))
 				    result = False
+				    continue
+
                             exp_reg = getattr(cc_register, reg)
                             if reg.endswith("_f"):
                                     # we are dealing with a float, so should not require exact match
@@ -562,6 +564,16 @@ def disable_qie(ts, crate=1):
 
 # /FUNCTIONS
 
+def printNiceLinkInfo(info):
+	statData[link]['alignBCN']
+	nice = []
+	for link, link_info in info.iteritems():
+		nice.append("Link {0}\n------------\n".format(link))
+		for counter, value in link_info.iteritems():
+			nice.append("    {0}:{1}\n".format(counter, value))
+
+	return "".join(nice)
+
 ## ---------------------------
 ## -- Main monitor function --
 ## ---------------------------
@@ -588,7 +600,7 @@ Please check the system asap!
 
 Thanks!!
 """
-		send_email(subject="!!Problem with HE log_teststand.py!!" , body=email_body)
+		send_email(subject="!!Problem with HE log_teststand.py ({0})!!".format(ts.name), body=email_body)
 		return
 	else:
 		print "> Monitoring log {0} ...".format(logpath)
@@ -613,7 +625,8 @@ Thanks!!
                                                                                            slot=uhtr_.slot,
                                                                                            ip=uhtr_.ip,
                                                                                            control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
-                                send_email(subject="HE radiation test: links reinitialized!", body="Link status after reinitialization is\n{0}".format(raw_status[1]))
+				link_error_info = printNiceLinkInfo(statData)
+                                send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nLink status after reinitialization is\n{1}".format(link_error_info, raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
@@ -663,7 +676,7 @@ Thanks!!
 				print "> CRITICAL ERROR DETECTED!"
 							
 				# Prepare email:
-				email_subject = "ERROR at HE teststand"
+				email_subject = "ERROR at HE teststand ({0})".format(ts.name)
 				email_body = "Critical errors were detected while reading \"{0}\".\nThe errors are listed below:\n\n".format(logpath)
 				for c in critical:
 					email_body += c.error + " (scale {0})".format(c.scale)
@@ -708,7 +721,7 @@ Thanks!!
 				os.makedirs("{0}/error_logs".format(logpathinfo[0]))
 			with open("{0}/error_logs/errors_{1}".format(logpathinfo[0], logpathinfo[2]), "w") as out:
 				out.write(error_log)
-
+			print "Wrote error log"
 		else:
 			print "All checks passed"
 					

@@ -14,10 +14,15 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.CDRreset = 0
         self.GTXreset = 1
         if tstype == "HEfnal":
+            self.OrbitDelay = 44
+            self.n_active_links = 6
+            self.maxADC = 50
+            self.maxAveADC = 10
+        elif type == "HEcharm":
             self.OrbitDelay = 33
             self.n_active_links = 4
-            self.maxADC = 100
-            self.maxAveADC = 10
+            self.maxADC = 10
+            self.maxAveADC = 10            
         else:
             # Not implemented yet
             self.OrbitDelay = 50
