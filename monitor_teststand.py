@@ -234,7 +234,7 @@ def check_link_status(statData):
         problemType = 0  
         for link in statData:
                 if statData[link]['On']:
-                        if statData[link]['badAlign']>100:
+                        if statData[link]['badAlign']>500:
 				# Put it rather high, seems like there are some link issues
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
@@ -312,7 +312,7 @@ def check_controlcard_registers(controlcard_status, log_parsed):
                         # Find it in the logs, and check whether it matches
 			try:
                             log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
-			    if "NACK" in log_reg and "biasmon" in reg:
+			    if ("NACK" in log_reg or "ERROR" in log_reg) and "biasmon" in reg:
 				    error.append("Control Card SEU candidate: get HE{0}-{1}-{2} returned {3}".format(crate, slot, reg, log_reg))
 				    result = False
 				    continue
@@ -341,7 +341,7 @@ def check_controlcard_registers(controlcard_status, log_parsed):
 
         return check(result=result, error="\n".join(error), scale=scale)
 
-def check_bridge_registers(bridge_status, log_parsed):
+def check_bridge_registers(ts, bridge_status, log_parsed):
         result = True
         error = []
 	scale = 0
@@ -373,6 +373,13 @@ def check_bridge_registers(bridge_status, log_parsed):
 						result = False
 						# probably SEU, so no need for an email ;-)
 						error.append("Bridge SEU candidate: get HE{0}-{1}-{2}-B_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
+						# write back the scratch register if necesary
+						if "SCRATCH" in reg:
+							output = ngfec.send_commands(ts=ts, 
+										     cmds=["put HE{0}-{1}-{2}-B_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
+										     script=True)
+							error.append("Wrote back scratch register: {0} -> {1}\n".format(result["cmd"][0], result["result"][0]))
+
 			except KeyError:
 				result = False
 				scale = 1
@@ -385,7 +392,7 @@ def check_bridge_registers(bridge_status, log_parsed):
         return check(result=result, error="\n".join(error), scale=scale)
 
 
-def check_igloo_registers(igloo_status, log_parsed, scale):
+def check_igloo_registers(ts, igloo_status, log_parsed, scale):
         result = True
         error = []
 	scale = 0
@@ -429,6 +436,13 @@ def check_igloo_registers(igloo_status, log_parsed, scale):
 						result = False
 						# probably SEU
 						error.append("Igloo SEU candidate: get HE{0}-{1}-{2}-i_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
+						# write back the scratch register if necesary
+						if "scratch" in reg:
+							output = ngfec.send_commands(ts=ts, 
+										     cmds=["put HE{0}-{1}-{2}-i_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
+										     script=True)
+							error.append("Wrote back scratch register: {0} -> {1}\n".format(result["cmd"][0], result["result"][0]))
+
 			except KeyError:
 				result = False
 				scale = 1
@@ -441,13 +455,14 @@ def check_igloo_registers(igloo_status, log_parsed, scale):
         return check(result=result, error="\n".join(error), scale=scale)
 
 
-def check_registers(ts_status, log_parsed, scale):
+def check_registers(ts, ts_status, log_parsed, scale):
         # Check the qies        
         check_qies = check_qie_registers(ts_status.qies, log_parsed)
         check_controlcards = check_controlcard_registers(ts_status.controlcards, log_parsed)
-	check_bridges = check_bridge_registers(ts_status.bridges, log_parsed)
-	check_igloos = check_igloo_registers(ts_status.igloos, log_parsed, scale)
+	check_bridges = check_bridge_registers(ts, ts_status.bridges, log_parsed)
+	check_igloos = check_igloo_registers(ts, ts_status.igloos, log_parsed, scale)
         return [check_qies, check_controlcards, check_bridges, check_igloos]
+	
 
 ## ------------------
 ## -- Check power: --
@@ -565,7 +580,6 @@ def disable_qie(ts, crate=1):
 # /FUNCTIONS
 
 def printNiceLinkInfo(info):
-	statData[link]['alignBCN']
 	nice = []
 	for link, link_info in info.iteritems():
 		nice.append("Link {0}\n------------\n".format(link))
@@ -649,7 +663,7 @@ Thanks!!
 		checks.append(check_link_adc(ts_status, parsed))
 		#checks.append(check_power(parsed))
 		#checks.append(check_cntrl_link(parsed))
-                checks.extend(check_registers(ts_status, parsed, scale))
+                checks.extend(check_registers(ts, ts_status, parsed, scale))
 
 		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
 					
