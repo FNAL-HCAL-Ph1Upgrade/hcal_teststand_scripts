@@ -21,7 +21,7 @@ port_default = 4342
 # /CLASSES
 
 # FUNCTIONS:
-def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_default, script=False, raw=False):
+def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_default, script=False, raw=False, time_out=30):
 	# Arguments and variables
 	output = []
 	raw_output = ""
@@ -76,10 +76,10 @@ def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_defaul
 			for i, c in enumerate(cmds):
 				# Deterimine how long to wait until the first result is expected:
 				if i == 0:
-					timeout = max([60, int(0.0075*len(cmds))])
+					timeout = max([time_out, int(0.0075*len(cmds))])
 #					print i, c, timeout
 				else:
-					timeout = 60		# pexpect default
+					timeout = time_out		# pexpect default
 #					print i, c, timeout
 #				print i, c, timeout
 				
