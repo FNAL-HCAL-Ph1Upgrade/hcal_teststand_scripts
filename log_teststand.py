@@ -281,17 +281,28 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 		 "get HE{0}-{1}-Vdd_f".format(crate, slot)
 		 ]
 	cmds3 = []
-
+	cmds4 = []
 	# TODO find a better way to handle this
-        for j in xrange(1,49):
-		cmds3.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
-		cmds3.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
+	if ts.name == "HEcharm":
+		for j in [1,15,39]:
+			cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
+		for j in [1,15,39]:
+			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
+			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
+	if ts.name == "HEfnal":
+		for j in xrange(1,49):
+			cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
+		for j in xrange(1,49):
+			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
+			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
 
 	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
 	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -356,13 +367,13 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
 			log += uhtr.get_linkdtc(ts,cs[0],cs[1])
 
 	# Take a histo run every now and then
-	if scale == 1:
-		histo_output = uhtr.get_histos(ts, 
-					       n_orbits=5000, 
-					       sepCapID=0, 
-					       file_out_base="{0}/histo_{1}".format(logpath, logstring), 
-					       script = False)
-		log += "\n Took a histo run, with base name {0}/histo_{1}.\n".format(logpath, logstring)
+	# if scale == 1:
+	# 	histo_output = uhtr.get_histos(ts, 
+	# 				       n_orbits=5000, 
+	# 				       sepCapID=0, 
+	# 				       file_out_base="{0}/histo_{1}".format(logpath, logstring), 
+	# 				       script = False)
+	# 	log += "\n Took a histo run, with base name {0}/histo_{1}.\n".format(logpath, logstring)
 
 	return log, link_status_parsed
 
@@ -375,6 +386,7 @@ def HEsetup(ts):
 	# loop over the crates and slots
 	for icrate, crate in enumerate(ts.fe_crates):
 		for slot in ts.qie_slots[icrate]:
+			print "crate", crate, "slot", slot
 			cmds1 = ["put HE{0}-{1}-dac1-daccontrol_RefSelect 0".format(crate, slot),
 				 "put HE{0}-{1}-dac1-daccontrol_ChannelMonitorEnable 1".format(crate, slot), 
 				 "put HE{0}-{1}-dac1-daccontrol_InternalRefEnable 1".format(crate, slot),
@@ -539,7 +551,7 @@ if __name__ == "__main__":
 			nfailed_tries += 1
 			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
 			print ex
-			if nfailed_tries > 2:
+			if nfailed_tries > 10:
 				print "System is in a bad state, stopping the logger nicely and alerting experts..."
 				monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
 							     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")

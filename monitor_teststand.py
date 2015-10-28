@@ -301,12 +301,26 @@ def check_qie_registers(qie_status, log_parsed):
 
         return check(result=result, error="\n".join(error), scale=scale)
 
-def check_controlcard_registers(controlcard_status, log_parsed):
+def check_controlcard_registers(ts, controlcard_status, log_parsed):
         result = True
         error = []
 	scale = 0
         for crate_slot, cc_register in controlcard_status.iteritems():
                 crate, slot = crate_slot
+		# Check biasvoltage put command
+		for i in [1,15,39]:
+			try:
+				log_reg = log_parsed["registers"]["registers"]["put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, i)]
+				if not "OK" in log_reg:
+					error.append("Control Card SEU candidate: put HE{0}-{1}-biasvoltage{2}_f returned {3}".format(crate, slot, i, log_reg))
+					result = False
+					continue
+			except KeyError:
+				result = False
+				scale = 1
+				error.append("Control card register HE{0}-{1}-biasvoltage{2}_f could not be found in the log.".format(crate, slot, i))
+			
+				
                 regs = [reg for reg in dir(cc_register) if not reg.startswith("__")]
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
@@ -329,6 +343,11 @@ def check_controlcard_registers(controlcard_status, log_parsed):
                                             # Probably a SEU, these are the peltier registers
                                             error.append("Control Card error: get HE{0}-{1}-{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
                                             result = False
+					    if "peltier_control" in reg:
+						    # need to reset the temperature control, probably ngccm was restarted, so just redo full setup
+						    # TODO do this in a cleaner way
+						    from log_teststand import HEsetup
+						    HEsetup(ts)
                                             
 			except KeyError:
 				result = False
@@ -458,7 +477,7 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 def check_registers(ts, ts_status, log_parsed, scale):
         # Check the qies        
         check_qies = check_qie_registers(ts_status.qies, log_parsed)
-        check_controlcards = check_controlcard_registers(ts_status.controlcards, log_parsed)
+        check_controlcards = check_controlcard_registers(ts, ts_status.controlcards, log_parsed)
 	check_bridges = check_bridge_registers(ts, ts_status.bridges, log_parsed)
 	check_igloos = check_igloo_registers(ts, ts_status.igloos, log_parsed, scale)
         return [check_qies, check_controlcards, check_bridges, check_igloos]
@@ -624,6 +643,11 @@ Thanks!!
                 linksGood, problemLinks, problemType = check_link_status(statData)
                 if not linksGood:
                         print "Problem in uHTR in crate {0}, slot {1}, with Links: {2}".format(uhtr_.crate, uhtr_.slot, problemLinks)
+			umniostat = ""
+			if ts.name == "HEcharm":
+				print "Checking uMNio DTC"
+				umniostat = umnio.getDTCstatus(ip="192.168.115.16")
+				print umniostat
                         if problemType == 1:
                                 print "Initializing links"
                                 uhtr.initLinks_per_uhtr(ts, uhtr_.crate, uhtr_.slot, uhtr_.ip,
@@ -640,7 +664,7 @@ Thanks!!
                                                                                            ip=uhtr_.ip,
                                                                                            control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
 				link_error_info = printNiceLinkInfo(statData)
-                                send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nLink status after reinitialization is\n{1}".format(link_error_info, raw_status[1]))
+                                send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nuMNio status was: \n{1}\n\nLink status after reinitialization is\n{2}".format(link_error_info, umniostat, raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"

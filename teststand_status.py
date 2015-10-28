@@ -69,9 +69,9 @@ class IglooRegisters:
         self.ZerosRegister = 0
         self.OnesRegister = 0xffffffff
         self.FPGA_TopOrBottom = 0
-        self.StatusReg_InputSpyFifoEmpty = 1
+        #self.StatusReg_InputSpyFifoEmpty = 1
         self.StatusReg_InputSpyFifoFull = 0
-        self.StatusReg_InputSpyWordNum = 0
+        #self.StatusReg_InputSpyWordNum = 0
         self.StatusReg_PLL320MHzLock = 1
         self.StatusReg_BRIDGE_SPARE = 0
         self.StatusReg_QieDLLNoLock = 0
@@ -173,8 +173,12 @@ class ControlCardRegisters:
         #self.Vin_f = 
         #self.Vt_f =
         #self.Vdd_f =
-        if tstype == "HEfnal" or tstype == "HEcharm":
+        if tstype == "HEfnal": 
             for i in xrange(1,49):
+                setattr(self, "biasmon{0}_f".format(i), 70.0)
+                #setattr(self, "LeakageCurrent{0}_f".format(i), )
+        if tstype == "HEcharm":
+            for i in [1,15,39]:
                 setattr(self, "biasmon{0}_f".format(i), 70.0)
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
