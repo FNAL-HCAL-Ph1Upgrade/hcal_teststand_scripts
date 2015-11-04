@@ -1,37 +1,42 @@
 import hcal_teststand.ngfec
 import hcal_teststand.hcal_teststand
 from time import sleep
+from optparse import OptionParser
+import sys
+from hcal_teststand.utilities import *
 
 def readIglooSpy(tsname):
+    results = {}
+
     ts = hcal_teststand.hcal_teststand.teststand(tsname)
-    cmds1 = ["put HE1-1-1-i_CntrReg_WrEn_InputSpy 1",
-             "wait 100",
-             "put HE1-1-1-i_CntrReg_WrEn_InputSpy 0",
-             "get HE1-1-1-i_StatusReg_InputSpyWordNum"]
-#             "get HE1-1-1-i_StatusReg_InputSpyFifoEmpty"]
+    for icrate, crate in enumerate(ts.fe_crates):
+        for slot in ts.qie_slots[icrate]:
+            for card in ts.qiecards[crate,slot]:
+                try:
+                    cmds1 = ["put HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy 1".format(crate, slot, card),
+                             "wait 100",
+                             "put HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy 0".format(crate, slot, card),
+                             "get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, card)]
 
-    output = hcal_teststand.ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
-    #print output
-    nsamples = output[-1]["result"]
-    #print "nsamples: ", int(nsamples,16)
+                    print cmds1
+                    output = hcal_teststand.ngfec.send_commands(ts=ts, cmds=cmds1, script=True, time_out=200)
+                    print output
+                    nsamples = output[-1]["result"]
+                    #print "nsamples: ", int(nsamples,16)
 
-    cmds2 = ["get HE1-1-1-i_inputSpy","wait 200"]*(int(nsamples,16))
-    output_all = hcal_teststand.ngfec.send_commands(ts=ts, cmds=cmds2, script=True, time_out=400)
-    return [out["result"] for out in output_all if not out["result"] == "OK"]
-    # Wait a bit to let the fifo fill up
-    #sleep(1)
-    #output = []
-    #spyempty = False
-    #while not spyempty:
-    #    print "starting turn ", len(output)
-        #    for i in xrange(int(nsamples,16)):
-    #    output_all = hcal_teststand.ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
-    #    output.append(output_all[0])
-    #    print output_all[1]["result"]
-    #    if int(output_all[1]["result"]) == 1:
-    #        spyempty = True
-    #print len(output), nsamples
-    #return [out["result"] for out in output]
+                    cmds2 = ["get HE{0}-{1}-{2}-i_inputSpy".format(crate, slot, card),
+                             "wait 200"]*(int(nsamples,16))
+                    #cmds2 = ["get HE{0}-{1}-{2}-i_inputSpy".format(crate, slot, card),
+                    #         "wait 200"]*(10)
+                    print cmds2
+                    output_all = hcal_teststand.ngfec.send_commands(ts=ts, cmds=cmds2, script=True, time_out=600)
+                    #print output_all
+                    results[crate, slot, card] = [out["result"] for out in output_all if not out["result"] == "OK"]
+                except Exception as ex:
+                    print "Caught exception:"
+                    print ex
+                    #just continue with the next one
+    return results
 
 def interleave(c0, c1):
     retval = 0;
@@ -73,14 +78,6 @@ def getInfoFromSpy_per_QIE(buff, verbose=False):
     BITMASK_CAP = 0x01
     OFFSET_CAP0 = 7
     OFFSET_CAP1 = 15
-
-    #print "Will convert", buff
-    # if len(buff) != 6:
-    #     print "bad input"
-    #     return {'capid':-1,
-    #             'adc':-1,
-    #             'exp':-1,
-    #             'tdc':-1}
 
     int_buff = int(buff,16)
 
@@ -128,7 +125,7 @@ def getInfoFromSpy(buff_list):
     # get separate QIE info
     parsed_info_list = []
     for i, reading in enumerate(buff_list):
-        print "parsing", i, reading
+        #print "parsing", i, reading
         qie_info = parseIglooSpy(reading)
         # at this point qie_info could be zero, or less than 12 items long
         # Need to be able to deal with this
@@ -136,7 +133,7 @@ def getInfoFromSpy(buff_list):
         for info in qie_info:
             parsed_info.append(getInfoFromSpy_per_QIE(info))
         parsed_info_list.append(parsed_info)
-        print parsed_info
+        #print parsed_info
 
     return parsed_info_list
 
@@ -217,18 +214,48 @@ if __name__ == "__main__":
     #bufflist = ['0x18 0x70f670f4 0x70f470f4 0x72f272f0 0x70f670f4 0x72f070f6 0x70f672f0',
     #            '0x17 0x70767274 0x70767272 0x70767074 0x70767074 0x70747270 0x70767272']
 
-    bufflist = readIglooSpy("HEcharm")
+    parser = OptionParser()
+    parser.add_option("--sleep", dest="sleep",
+                      default=10, metavar="N", type="float",
+                      help="Sleep for %metavar minutes in between data runs (default: %default)",
+                      )
+    parser.add_option("-t", "--teststand", dest="tstype",
+                      type="string",
+                      help="Which teststand to set up?"
+                      )
+    
+    (options, args) = parser.parse_args()
+    
+    if not options.tstype:
+        print "Please specify which teststand to use!"
+        sys.exit()
+    tstype = options.tstype
 
-    f = open("testigloospy2.txt",'w')
-    f.write("\n".join(bufflist))
-    f.close()
+    try:
+        while True:
+            t_string = time_string()[:-4]
+            path = "data/ts_{0}/spy_{1}.txt".format(tstype,t_string)
+            bufflist_dict = readIglooSpy(tstype)
 
-    #f = open("testigloospy.txt")
-    #bufflist = f.readlines()
+            f = open(path,'w')
+            for crate_slot_card, bufflist in bufflist_dict.iteritems():
+                crate, slot, card = crate_slot_card
+                f.write("Crate {}, RM {}, QIE card {}".format(crate, slot, card))
+                f.write("\n".join(bufflist))
+            
+                #f = open("testigloospy.txt")
+                #bufflist = f.readlines()
 
-    parsed_info_list = getInfoFromSpy(bufflist)
+                parsed_info_list = getInfoFromSpy(bufflist)
 
-    print capidRotating(parsed_info_list)
+                print capidRotating(parsed_info_list)
+
+            f.close()
+            sleep(60*options.sleep)
+    except KeyboardInterrupt:
+        print "bye!"
+        sys.exit()
+
 
     
     
