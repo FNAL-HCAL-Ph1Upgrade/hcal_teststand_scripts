@@ -1,6 +1,6 @@
 import log_teststand
 import hcal_teststand.hcal_teststand as hc
-import os
+import os, sys
 from optparse import OptionParser
 import hcal_teststand.uhtr as uhtr
 
@@ -22,8 +22,17 @@ parser.add_option("--all", dest="all",
                   default=False, action='store_true',
                   help="Do all initializations",
                   )
+parser.add_option("-t", "--teststand", dest="tstype",
+                  type="string",
+                  help="Which teststand to set up?"
+                  )
 
 (options, args) = parser.parse_args()
+
+if not options.tstype:
+    print "Please specify which teststand to use!"
+    sys.exit()
+tstype = options.tstype
 
 reset = False
 setup = False
@@ -40,13 +49,16 @@ if options.setup:
 if options.link:
     link = True
 
+ts = hc.teststand(tstype)
+
 if reset:
     # Do a reset
-    os.system("source /home/daq/pastika/reset.sh")
+    if tstype == "HEcharm":
+        os.system("source /home/daq/pastika/reset.sh")
+    else:
+        log_teststand.HEreset(ts)
 
-ts = hc.teststand("HEcharm")
-
-if link:
+if link and tstype != "HEoven":
     # initialize the links
     uhtr.initLinks(ts, OrbitDelay=33, Auto_Realign=1, OnTheFlyAlignment=0, CDRreset=0, GTXreset=0, verbose=True)
     print uhtr.linkStatus(ts)
