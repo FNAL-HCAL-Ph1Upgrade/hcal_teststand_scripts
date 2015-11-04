@@ -54,7 +54,7 @@ def send_commands(ts=None, control_hub=None, port=port_default, cmds=cmds_defaul
 		
 		# Send the ngfec commands:
 #		print ngfec_cmd
-		p = pexpect.spawn(ngfec_cmd)
+		p = pexpect.spawn(ngfec_cmd, timeout=time_out)
 #		print p.pid
 		if not script:
 			for i, c in enumerate(cmds):

@@ -62,21 +62,21 @@ class IglooRegisters:
     def __init__(self, qiecard, qies_per_card, tstype):
         """Initialize the igloo registers."""
         # These are the fixed ones
-        self.FPGA_MINOR_VERSION = 7 
-        if tstype == "HEfnal":
-            self.FPGA_MINOR_VERSION = 5
+        #self.FPGA_MINOR_VERSION = 7 
+        #if tstype == "HEfnal":
+        #    self.FPGA_MINOR_VERSION = 5
         self.FPGA_MAJOR_VERSION = 0
         self.ZerosRegister = 0
         self.OnesRegister = 0xffffffff
         self.FPGA_TopOrBottom = 0
         #self.StatusReg_InputSpyFifoEmpty = 1
-        self.StatusReg_InputSpyFifoFull = 0
+        #self.StatusReg_InputSpyFifoFull = 0
         #self.StatusReg_InputSpyWordNum = 0
         self.StatusReg_PLL320MHzLock = 1
         self.StatusReg_BRIDGE_SPARE = 0
         self.StatusReg_QieDLLNoLock = 0
         self.StatusReg_zero = 0
-        self.CntrReg_WrEn_InputSpy = 0
+        #self.CntrReg_WrEn_InputSpy = 0
         self.CntrReg_OrbHistoRun = 0
         self.CntrReg_CImode = 0
         self.CntrReg_InternalQIER = 0

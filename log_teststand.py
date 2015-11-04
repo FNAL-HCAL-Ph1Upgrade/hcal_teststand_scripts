@@ -65,7 +65,8 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
-		log += log_control_registers(ts, crate, ts.qie_slots[i], scale)
+		if ts.name != "HEoven":
+			log += log_control_registers(ts, crate, ts.qie_slots[i], scale)
 
 	return log
 
@@ -238,8 +239,8 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 		 "get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_SCRATCH".format(crate, slot, qiecard)
 		 ]
-	cmds3 = ["get HE{0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard)
-		 ]
+	cmds3 = ["get HE{0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_SHT_rh_f".format(crate, slot, qiecard)]
 
 	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
@@ -402,13 +403,14 @@ def HEsetup(ts):
 				 "put HE{0}-{1}-peltier_adjustment_f 0.25".format(crate, slot),
 				 "put HE{0}-{1}-peltier_control 1".format(crate, slot)
 				 ]
-	
-			output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
-			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-			output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
-			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-			output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
-			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+			if ts.name != "HEoven":
+				output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+				output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+				output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 			
 			for qiecard in ts.qiecards[crate, slot]:
 				cmds4 = ["put HE{0}-{1}-{2}-i_scratch 0xab".format(crate, slot, qiecard),
@@ -417,6 +419,15 @@ def HEsetup(ts):
 				output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
 				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 	print "".join(log)
+
+def HEreset(ts):
+	for crate in ts.fe_crates:
+		cmds1 = ["put HE{0}-bkp_reset 1".format(crate),
+			 "put HE{0}-bkp_reset 0".format(crate)]
+		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+		for out in output:
+			print "{0} -> {1}".format(out["cmd"], out["result"])
+
 
 ## -----------------------
 ## -- Main logging order 
@@ -430,7 +441,8 @@ def record(ts=False, path="data/unsorted", scale=0):
 	#log += log_power(ts)		# Power
 	log += "\n"
 #	log += log_version(ts)
-	log += log_temp(ts)		# Temperature
+	if ts.name != "HEoven":
+		log += log_temp(ts)		# Temperature
 	log += "\n"
 	log += '%% USERS\n'
 	log += getoutput('w')
@@ -441,9 +453,11 @@ def record(ts=False, path="data/unsorted", scale=0):
 	log += "\n"
 	
 	# Log links:
-        link_log, link_status = log_links(ts, scale=scale, logpath=path, logstring=t_string)
-	log += link_log
-	log += "\n"
+	link_status = {}
+	if ts.name != "HEoven":
+		link_log, link_status = log_links(ts, scale=scale, logpath=path, logstring=t_string)
+		log += link_log
+		log += "\n"
 
 	
 	# Log other:
@@ -555,7 +569,7 @@ if __name__ == "__main__":
 				print "System is in a bad state, stopping the logger nicely and alerting experts..."
 				monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
 							     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
-				sys.exit()
+				#sys.exit()
 			
 
 #		z = False

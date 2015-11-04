@@ -397,7 +397,7 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 							output = ngfec.send_commands(ts=ts, 
 										     cmds=["put HE{0}-{1}-{2}-B_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
 										     script=True)
-							error.append("Wrote back scratch register: {0} -> {1}\n".format(result["cmd"][0], result["result"][0]))
+							error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
 
 			except KeyError:
 				result = False
@@ -460,7 +460,7 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 							output = ngfec.send_commands(ts=ts, 
 										     cmds=["put HE{0}-{1}-{2}-i_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
 										     script=True)
-							error.append("Wrote back scratch register: {0} -> {1}\n".format(result["cmd"][0], result["result"][0]))
+							error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
 
 			except KeyError:
 				result = False
@@ -475,12 +475,17 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 
 
 def check_registers(ts, ts_status, log_parsed, scale):
-        # Check the qies        
+        checks = []
         check_qies = check_qie_registers(ts_status.qies, log_parsed)
-        check_controlcards = check_controlcard_registers(ts, ts_status.controlcards, log_parsed)
+	checks.append(check_qies)
+	if ts.name != "HEoven":
+		check_controlcards = check_controlcard_registers(ts, ts_status.controlcards, log_parsed)
+		checks.append(check_controlcards)
 	check_bridges = check_bridge_registers(ts, ts_status.bridges, log_parsed)
+	checks.append(check_bridges)
 	check_igloos = check_igloo_registers(ts, ts_status.igloos, log_parsed, scale)
-        return [check_qies, check_controlcards, check_bridges, check_igloos]
+	checks.append(check_igloos)
+	return checks
 	
 
 ## ------------------
@@ -547,7 +552,9 @@ def send_email(subject="", body=""):
 #			"yw5mj@virginia.edu",
 #			"whitbeck.andrew@gmail.com",
                         "pastika@fnal.gov",
-			"nadja.strobbe@gmail.com"
+			"nadja.strobbe@gmail.com",
+			"danila.tlisov@cern.ch",
+			"pavel.bunin@cern.ch"
 		],
 		msg.as_string()
 	)
@@ -669,7 +676,8 @@ Thanks!!
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
 
-	print "Finished checking links"
+	if len(link_status) != 0:
+		print "Finished checking links"
 
 	# Now open the log and parse it
 	with open(logpath) as f_in:
@@ -678,13 +686,14 @@ Thanks!!
 		# Perform checks:
 		error_log = ""
 		checks = []
-		checks.append(check_temps(ts, ts_status, parsed))
-		#checks.append(check_clocks(parsed))
-		#cntrl_link = check_ngccm_static_regs(parsed)
-		#checks.append(cntrl_link)
-		checks.append(check_link_number(ts_status, parsed))
-		checks.append(check_link_orbits(parsed))
-		checks.append(check_link_adc(ts_status, parsed))
+		if ts.name != "HEoven":
+			checks.append(check_temps(ts, ts_status, parsed))
+		        #checks.append(check_clocks(parsed))
+		        #cntrl_link = check_ngccm_static_regs(parsed)
+			#checks.append(cntrl_link)
+			checks.append(check_link_number(ts_status, parsed))
+			checks.append(check_link_orbits(parsed))
+			checks.append(check_link_adc(ts_status, parsed))
 		#checks.append(check_power(parsed))
 		#checks.append(check_cntrl_link(parsed))
                 checks.extend(check_registers(ts, ts_status, parsed, scale))
