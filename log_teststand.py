@@ -41,16 +41,17 @@ def log_temp(ts):
 def log_power(ts):
 	log = "%% POWER\n"
 	t0 = time_string()		# Get the time before. I get the time again after everything.
-#	power_fe = ts_157.get_power(ts)
-#	log += "%% POWER\n{0:.2f} V\n{1:.2f} A\n".format(power_fe["V"], power_fe["I"])
+	power_fe = ts_157.get_power(ts,6)
+	power_fe8 = ts_157.get_power(ts,8)
+	log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
+	log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
 	try:
-		power_ngccm = ngccm.get_power(ts)		# Take only the crate 1 results (there's only one crate, anyway).
+		power_ngccm = ngccm.get_power(ts).values()[0]		# Take only the crate 1 results (there's only one crate, anyway).
 	except Exception as ex:
 		print ex
-		power_ngccm = {}
-	for cra in power_ngccm.keys():
-		for result in power_ngccm[cra]:
-			log += "{0} -> {1}\n".format(result["cmd"], result["result"])
+		power_ngccm = []
+	for result in power_ngccm:
+		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
 
 def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers, 1 is full.
@@ -438,7 +439,7 @@ def record(ts=False, path="data/unsorted", scale=0):
 	t0 = time_string()
 
 	# Log basics:
-	#log += log_power(ts)		# Power
+	log += log_power(ts)		# Power
 	log += "\n"
 #	log += log_version(ts)
 	if ts.name != "HEoven":
