@@ -10,7 +10,7 @@ def main():
     ts = hc.teststand("HEcharm")
 
     histo_output = uhtr.get_histos(ts,
-                                   n_orbits=10000000,
+                                   n_orbits=5000000,
                                    sepCapID=0,
                                    file_out_base="{0}/histo_{1}".format("data/long_histos", t),
                                    script = False)                                           
