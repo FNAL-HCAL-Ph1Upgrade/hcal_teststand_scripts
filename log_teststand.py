@@ -429,6 +429,15 @@ def HEreset(ts):
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
+def HEtogglebkp_pwr(ts): 
+	for crate in ts.fe_crates:
+		cmds1 = ["put HE{0}-bkp_pwr_enable 0".format(crate),
+			 "wait",
+			 "put HE{0}-bkp_pwr_enable 1".format(crate)]
+		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+		for out in output:
+			print "{0} -> {1}".format(out["cmd"], out["result"])
+
 
 ## -----------------------
 ## -- Main logging order 

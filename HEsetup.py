@@ -6,6 +6,10 @@ import hcal_teststand.uhtr as uhtr
 
 
 parser = OptionParser()
+parser.add_option("--togglePower", dest="togglePower",
+                  default=False, action='store_true',
+                  help="Disable and Enable backplane power (RM and CU)",
+                  )
 parser.add_option("--reset", dest="reset",
                   default=False, action='store_true',
                   help="Do reset",
@@ -34,14 +38,18 @@ if not options.tstype:
     sys.exit()
 tstype = options.tstype
 
+togglePower = False
 reset = False
 setup = False
 link = False
 if options.all:
+    togglePower = True
     reset = True
     setup = True
     link = True
 
+if options.togglePower:
+    togglePower = True
 if options.reset:
     reset = True
 if options.setup:
@@ -51,16 +59,15 @@ if options.link:
 
 ts = hc.teststand(tstype)
 
+if togglePower:
+    log_teststand.HEtogglebkp_pwr(ts)
+
 if reset:
-    # Do a reset
-    if tstype == "HEcharm":
-        os.system("source /home/daq/pastika/reset.sh")
-    else:
-        log_teststand.HEreset(ts)
+    log_teststand.HEreset(ts)
 
 if link and tstype != "HEoven":
     # initialize the links
-    uhtr.initLinks(ts, OrbitDelay=33, Auto_Realign=1, OnTheFlyAlignment=0, CDRreset=0, GTXreset=0, verbose=True)
+    uhtr.initLinks(ts, OrbitDelay=53, Auto_Realign=1, OnTheFlyAlignment=0, CDRreset=1, GTXreset=1, verbose=True)
     print uhtr.linkStatus(ts)
 
 if setup:
