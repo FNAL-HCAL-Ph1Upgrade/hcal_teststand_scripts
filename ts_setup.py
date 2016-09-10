@@ -123,8 +123,8 @@ if __name__ == "__main__":
 	# Script arguments:
 	parser = OptionParser()
 	parser.add_option("-t", "--teststand", dest="ts",
-		default="904at",
-		help="The name of the teststand you want to use (default is \"157\").",
+		default="HEcharm",
+		help="The name of the teststand you want to use (default is %(default)).",
 		metavar="STR"
 	)
 	parser.add_option("-v", "--verbose", dest="verbose",
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 	print "(1) Setting up the AMC13s ..."
 	if check_status_amc13(ts=ts, v=v, fast=fast):
 		print "\tConfiguring the AMC13s ..."
-		setup_results = amc13.setup_all(ts=ts, mode=0)		# Set up the AMC13s in not TTC mode.
+		setup_results = amc13.setup_all(ts=ts, mode=1)		# Set up the AMC13s in TTC mode.
 		for be_crate, setup_result in setup_results.iteritems():
 			if not setup_result:
 				print "\t[!!] Configuration of the AMC13 in BE Crate {0} failed.".format(be_crate)
