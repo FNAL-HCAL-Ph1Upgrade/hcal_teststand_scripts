@@ -11,7 +11,7 @@ class LinkParameters:
 OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.Auto_Realign = 1
         self.OnTheFlyAlignment = 0
-        self.CDRreset = 0
+        self.CDRreset = 1
         self.GTXreset = 1
         if tstype == "HEfnal":
             self.OrbitDelay = 44
@@ -19,10 +19,10 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
             self.maxADC = 50
             self.maxAveADC = 10
         elif tstype == "HEcharm":
-            self.OrbitDelay = 33
-            self.n_active_links = 4
-            self.maxADC = 10
-            self.maxAveADC = 10            
+            self.OrbitDelay = 53
+            self.n_active_links = 10
+            self.maxADC = 100
+            self.maxAveADC = 20            
         else:
             # Not implemented yet
             self.OrbitDelay = 50
@@ -49,7 +49,7 @@ class QIERegisters:
         self.Lvds = 1
         self.TDCmode = 0
         self.TimingThresholdDAC = 0xff
-        self.CkOutEn = 0
+        self.CkOutEn = 1
         self.Gsel = 0
         self.PedestalDAC = 0x26 
         self.TGain = 0
@@ -62,7 +62,7 @@ class IglooRegisters:
     def __init__(self, qiecard, qies_per_card, tstype):
         """Initialize the igloo registers."""
         # These are the fixed ones
-        #self.FPGA_MINOR_VERSION = 7 
+        self.FPGA_MINOR_VERSION = 0xb 
         #if tstype == "HEfnal":
         #    self.FPGA_MINOR_VERSION = 5
         self.FPGA_MAJOR_VERSION = 0
@@ -81,6 +81,7 @@ class IglooRegisters:
         self.CntrReg_CImode = 0
         self.CntrReg_InternalQIER = 0
         self.CntrReg_OrbHistoClear = 0
+        self.CapIdErrLink2_count = 0
         self.CapIdErrLink3_count = 0
         self.scratch = 0xab
 
@@ -88,14 +89,13 @@ class IglooRegisters:
             setattr(self, 'Qie{0}_ck_ph'.format((qiecard-1)*qies_per_card+j+1), 0) 
 
         # These should be increasing
-        #self.WTE_count = 0
+        self.WTE_count = 0
         self.Clk_count = 0
         self.RST_QIE_count = 0
 
         # These can go up, not necessarily because of radiation, but could be
         # So we should keep track of it
         self.CapIdErrLink1_count = 0 
-        self.CapIdErrLink2_count = 0
         
     def update_WTE_count(self, new_value):
         self.WTE_count = new_value
@@ -109,8 +109,8 @@ class IglooRegisters:
     def update_CapIdErrLink1_count(self, new_value):
         self.CapIdErrLink1_count = new_value
 
-    def update_CapIdErrLink2_count(self, new_value):
-        self.CapIdErrLink2_count = new_value
+    #def update_CapIdErrLink2_count(self, new_value):
+    #    self.CapIdErrLink2_count = new_value
 
     def update_transients(self, new_values):
         """Update all transient variables: WTE_count, Clk_count, RST_QIE_count, CapIdErrLink1_count and CapIdErrLink2_count. Expects a dictionary as input with format {'variable name':new_value}"""
@@ -118,7 +118,7 @@ class IglooRegisters:
         self.update_Clk_count(new_values["Clk_count"])
         self.update_RST_QIE_count(new_values["RST_QIE_count"])
         self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
-        self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
+        #self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
         
 
 class BridgeRegisters:
@@ -129,14 +129,15 @@ and to store the current state of the ones we expect to change."""
         """Initialize the bridge registers."""
         # fixed ones
         self.FIRMVERSION_MAJOR = 1
-        self.FIRMVERSION_MINOR = 1
+        self.FIRMVERSION_MINOR = 0xe
+        self.FIRMVERSION_SVN = 0x1140
         self.ZEROES = 0
         self.ONES = 0xffffffff
         self.ONESZEROES = 0xaaaaaaaa
         self.SCRATCH = 0xab
 
         # These should be increasing
-        #self.WTECOUNTER = 0
+        self.WTECOUNTER = 0
         self.CLOCKCOUNTER = 0
         self.RESQIECOUNTER = 0
 
@@ -166,7 +167,7 @@ class ControlCardRegisters:
         self.peltier_adjustment_f = 0.25
         self.peltier_control = 1
         self.peltier_stepseconds = 0x384
-        self.peltier_targettemperature_f = 22.0
+        self.peltier_targettemperature_f = 20.0
         #self.PeltierVoltage_f = 
         #self.PeltierCurrent_f = 
         #self.BVin_f = 
@@ -179,7 +180,7 @@ class ControlCardRegisters:
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
         if tstype == "HEcharm":
             for i in [1,15,39]:
-                setattr(self, "biasmon{0}_f".format(i), 70.0)
+                setattr(self, "biasmon{0}_f".format(i), 69.0)
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
 
