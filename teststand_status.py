@@ -81,7 +81,6 @@ class IglooRegisters:
         self.CntrReg_CImode = 0
         self.CntrReg_InternalQIER = 0
         self.CntrReg_OrbHistoClear = 0
-        self.CapIdErrLink2_count = 0
         self.CapIdErrLink3_count = 0
         self.scratch = 0xab
 
@@ -96,6 +95,7 @@ class IglooRegisters:
         # These can go up, not necessarily because of radiation, but could be
         # So we should keep track of it
         self.CapIdErrLink1_count = 0 
+        self.CapIdErrLink2_count = 0
         
     def update_WTE_count(self, new_value):
         self.WTE_count = new_value
@@ -109,8 +109,8 @@ class IglooRegisters:
     def update_CapIdErrLink1_count(self, new_value):
         self.CapIdErrLink1_count = new_value
 
-    #def update_CapIdErrLink2_count(self, new_value):
-    #    self.CapIdErrLink2_count = new_value
+    def update_CapIdErrLink2_count(self, new_value):
+        self.CapIdErrLink2_count = new_value
 
     def update_transients(self, new_values):
         """Update all transient variables: WTE_count, Clk_count, RST_QIE_count, CapIdErrLink1_count and CapIdErrLink2_count. Expects a dictionary as input with format {'variable name':new_value}"""
@@ -118,7 +118,7 @@ class IglooRegisters:
         self.update_Clk_count(new_values["Clk_count"])
         self.update_RST_QIE_count(new_values["RST_QIE_count"])
         self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
-        #self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
+        self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
         
 
 class BridgeRegisters:

@@ -70,10 +70,13 @@ def parse_log(log_raw):
 				if "links:" in l:
 					linkindex = il
 					break
-			if linkindex != -1:		
-				log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex].split("links:")[-1])
-				log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+1].split("orbit:")[-1])
-				log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+2].split("meanADC:")[-1])
+			if linkindex != -1:
+				try:
+					log_parsed["links"]["links"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex].split("links:")[-1])
+					log_parsed["links"]["orbits"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+1].split("orbit:")[-1])
+					log_parsed["links"]["adc"] = ast.literal_eval(log_parsed["links"]["lines"][linkindex+2].split("meanADC:")[-1])
+				except SyntaxError:
+					print "Couldn't extract all information from ", log_parsed["links"]
 			else:
 				print "No link information from the spy!"
 	return log_parsed
@@ -115,6 +118,40 @@ def check_temps(ts, ts_status, log_parsed):
 		error += str(ex)
 		print ex
 	return check(result=result, error=error.strip(), scale=1)
+
+
+## ---------------------
+## -- Check humidity: --
+## ---------------------
+
+def check_humidity(ts, ts_status, log_parsed):
+	result = False
+	error = ""
+	try:
+		temps = []
+		for ix, i in enumerate(ts.fe_crates):
+			for j in ts.qie_slots[ix]:
+                                temp = log_parsed["humidity"]["registers"]["Crate {0} -> RM {1}".format(i,j)]
+				if "ERROR" in temp or temp.strip() == "":
+					temps.append(-1)
+				else:
+                                        try:
+                                                temp_f = float(temp)
+                                                temps.append(temp_f)
+                                                if temp_f > 65:
+                                                        error += "ERROR: High humidity in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,"<65%", temp)
+                                                        #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
+                                                else:
+                                                        result = True
+                                        except ValueError:
+                                                error += "No valid humidity for crate {0}, slot {1}: {2}\n".format(i,j,temp)
+                                                temps.append(-1)
+                                        
+	except Exception as ex:
+		error += str(ex)
+		print ex
+	return check(result=result, error=error.strip(), scale=1)
+
 
 ## ----------------------
 ## -- Check LHC clock: --
@@ -251,7 +288,7 @@ def check_link_status(statData):
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
                                 problemType = 1
-                        if statData[link]['alignDelta']==0 or statData[link]['alignDelta'] > 14:
+                        if statData[link]['alignDelta']==0 or statData[link]['alignDelta'] > 50:
                                 linksGood = False
                                 if not link in problemLinks: problemLinks.append(link)
                                 problemType = 1
@@ -308,17 +345,17 @@ def check_controlcard_registers(ts, controlcard_status, log_parsed):
         for crate_slot, cc_register in controlcard_status.iteritems():
                 crate, slot = crate_slot
 		# Check biasvoltage put command
-		for i in [1,15,39]:
-			try:
-				log_reg = log_parsed["registers"]["registers"]["put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, i)]
-				if not "OK" in log_reg:
-					error.append("Control Card SEU candidate: put HE{0}-{1}-biasvoltage{2}_f returned {3}".format(crate, slot, i, log_reg))
-					result = False
-					continue
-			except KeyError:
-				result = False
-				scale = 1
-				error.append("Control card register HE{0}-{1}-biasvoltage{2}_f could not be found in the log.".format(crate, slot, i))
+		#for i in [1,15,39]:
+		#	try:
+		#		log_reg = log_parsed["registers"]["registers"]["put HE{0}-{1}-biasvoltage{2}_f 69.0".format(crate, slot, i)]
+		#		if not "OK" in log_reg:
+		#			error.append("Control Card SEU candidate: put HE{0}-{1}-biasvoltage{2}_f returned {3}".format(crate, slot, i, log_reg))
+		#			result = False
+		#			continue
+		#	except KeyError:
+		#		result = False
+		#		scale = 1
+		#		error.append("Control card register HE{0}-{1}-biasvoltage{2}_f could not be found in the log.".format(crate, slot, i))
 			
 				
                 regs = [reg for reg in dir(cc_register) if not reg.startswith("__")]
@@ -425,6 +462,8 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 				continue
 			if scale == 0 and "_ck_ph" in reg and not "Qie41_ck_ph" in reg:
 				continue
+			if scale == 0 and "SPARE" in reg:
+				continue
 			try:
 				log_reg = ""
 				if "_ck_ph" in reg:
@@ -441,7 +480,7 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 				if "CapIdErrLink1" in reg or "CapIdErrLink2" in reg:
 					# just update it for now
 					getattr(igloo_register, "update_{0}".format(reg))(log_reg_i)
-				elif "count" in reg and not "CapIdErrLink3" in reg:
+				elif "count" in reg and not ("CapIdErrLink3" in reg):
 					# Check that it changed, and update the value
 					prev_reg = getattr(igloo_register, reg)
 					if log_reg_i != prev_reg:
@@ -640,7 +679,7 @@ Please check the system asap!
 
 Thanks!!
 """
-		send_email(subject="!!Problem with HE log_teststand.py ({0})!!".format(ts.name), body=email_body)
+		#send_email(subject="!!Problem with HE log_teststand.py ({0})!!".format(ts.name), body=email_body)
 		return
 	else:
 		print "> Monitoring log {0} ...".format(logpath)
@@ -651,7 +690,7 @@ Thanks!!
                 if not linksGood:
                         print "Problem in uHTR in crate {0}, slot {1}, with Links: {2}".format(uhtr_.crate, uhtr_.slot, problemLinks)
 			umniostat = ""
-			if ts.name == "HEcharm":
+			if ts.name == "HEcharm2015":
 				print "Checking uMNio DTC"
 				umniostat = umnio.getDTCstatus(ip="192.168.115.16")
 				print umniostat
@@ -671,7 +710,7 @@ Thanks!!
                                                                                            ip=uhtr_.ip,
                                                                                            control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
 				link_error_info = printNiceLinkInfo(statData)
-                                send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nuMNio status was: \n{1}\n\nLink status after reinitialization is\n{2}".format(link_error_info, umniostat, raw_status[1]))
+                                #send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nuMNio status was: \n{1}\n\nLink status after reinitialization is\n{2}".format(link_error_info, umniostat, raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
@@ -688,6 +727,7 @@ Thanks!!
 		checks = []
 		if ts.name != "HEoven":
 			checks.append(check_temps(ts, ts_status, parsed))
+			checks.append(check_humidity(ts, ts_status, parsed))
 		        #checks.append(check_clocks(parsed))
 		        #cntrl_link = check_ngccm_static_regs(parsed)
 			#checks.append(cntrl_link)
@@ -750,7 +790,7 @@ Thanks!!
 				email_body += "\nHave a nice day!"
 				try:
 					print "> Sending email ..."
-					send_email(subject=email_subject, body=email_body)
+					#send_email(subject=email_subject, body=email_body)
 					print "> Email sent."
 				except Exception as ex:
 					print "ERROR!!!"
@@ -779,12 +819,12 @@ if __name__ == "__main__":
 	# Script arguments:
 	parser = OptionParser()
 	parser.add_option("-t", "--teststand", dest="ts",
-		default="157",
+		default="HEcharm",
 		help="The name of the teststand you want to use (default is %default). Unless you specify the path, the directory will be put in \"data\".",
 		metavar="STR"
 	)
 	parser.add_option("-d", "--directory", dest="d",
-		default="data/ts_157",
+		default="data/ts_HEcharm",
 		help="The directory containing the log files (default is %default).",
 		metavar="STR"
 	)

@@ -30,21 +30,40 @@ def log_temp(ts):
 		print ex
 		temps = False
 	log += "%% TEMPERATURES\n"
-	if temps:
+ 	if temps:
 		for crate, cratetemps in enumerate(temps):
+			# cratetemps is a list of temperatures
+			for itemps, temps in enumerate(cratetemps):
+				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
+									     ts.qie_slots[crate][itemps/2],
+									     temps)
+
+	return log
+
+def log_humidity(ts):
+	log = ""
+	try:
+		hums = ts.get_hums()
+	except Exception as ex:
+		print ex
+		hums = False
+	log += "%% HUMIDITY\n"
+ 	if hums:
+		for crate, cratetemps in enumerate(hums):
 			for itemps, temps in enumerate(cratetemps):
 				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
 									     ts.qie_slots[crate][itemps],
 									     temps)
+
 	return log
 
 def log_power(ts):
 	log = "%% POWER\n"
 	t0 = time_string()		# Get the time before. I get the time again after everything.
-	power_fe = ts_157.get_power(ts,6)
-	power_fe8 = ts_157.get_power(ts,8)
-	log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
-	log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
+	#power_fe = ts_157.get_power(ts,6)
+	#power_fe8 = ts_157.get_power(ts,8)
+	#log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
+	#log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
 	try:
 		power_ngccm = ngccm.get_power(ts).values()[0]		# Take only the crate 1 results (there's only one crate, anyway).
 	except Exception as ex:
@@ -62,7 +81,7 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	# Function should be updated to take in an argument that lets you decide which ones to monitor
 	# Do everything one crate at a time
 	for i, crate in enumerate(ts.fe_crates):
-		#log += log_registers_crate_slots(ts, crate, ts.qie_slots[i], scale)
+		#log += log_registers_crate(ts, crate, scale)
 		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
@@ -71,9 +90,11 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 
 	return log
 
-def log_registers_crate_slots(ts, crate, slots, scale):
 
-	if scale == 0:
+
+# OZGUR: TO BE UPDATED
+def log_registers_crate(ts, crate, scale):
+	if scale == 0:  
 		cmds = [
 			"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
 			"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
@@ -89,18 +110,15 @@ def log_registers_crate_slots(ts, crate, slots, scale):
 			"get fec1-sfp1_status.RxLOS",
 			]
 			
-		for i in slots:
-			for j in ts.qiecards[crate,i]:
-				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
-				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+		#for i in slots:
+	#		for j in ts.qiecards[crate,i]:
+#				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+#				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 	elif scale == 1:
-		cmds=[]
-		for i in slots:
-			pass
-			#cmds.extend(ngccm.get_commands(crate,i)) # TODO: update to HE version
+		cmds = [] # needs updating
 	else:
 		cmds = []
-	#output = ngccm.send_commands_parsed(ts, cmds)["output"]
+
 	output = ngfec.send_commands(ts=ts, cmds=cmds)
 	log = ""
 
@@ -167,7 +185,6 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
 		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, qiecard), 
 		 "get HE{0}-{1}-{2}-i_StatusReg_PLL320MHzLock".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-i_StatusReg_QieDLLNoLock".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-i_StatusReg_zero".format(crate, slot, qiecard)
 		 ]
@@ -197,6 +214,7 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
 			      "get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate, slot, qiecard),
 			      "get HE{0}-{1}-{2}-i_CntrReg_InternalQIER".format(crate, slot, qiecard),  
 			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoClear".format(crate, slot, qiecard),      
+			      "get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
 			      ]
 
 		output = ngfec.send_commands(ts=ts, cmds=cmds_extra, script=True)
@@ -231,11 +249,12 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 
 	cmds1 = ["get HE{0}-{1}-{2}-B_FIRMVERSION_MAJOR".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_FIRMVERSION_MINOR".format(crate, slot, qiecard),
+		 "get HE{0}-{1}-{2}-B_FIRMVERSION_SVN".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_ZEROES".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_ONES".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_ONESZEROES".format(crate, slot, qiecard)
 		 ]
-	cmds2 = [#"get HE{0}-{1}-{2}-B_WTECOUNTER".format(crate, slot, qiecard),
+	cmds2 = ["get HE{0}-{1}-{2}-B_WTECOUNTER".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_CLOCKCOUNTER".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate, slot, qiecard),
 		 "get HE{0}-{1}-{2}-B_SCRATCH".format(crate, slot, qiecard)
@@ -286,14 +305,14 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 	cmds4 = []
 	# TODO find a better way to handle this
 	if ts.name == "HEcharm":
-		for j in [1,15,39]:
-			cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
+		#for j in [1,15,39]:
+	        #	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
 		for j in [1,15,39]:
 			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
 			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
 	if ts.name == "HEfnal":
-		for j in xrange(1,49):
-			cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
+		#for j in xrange(1,49):
+		#	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
 		for j in xrange(1,49):
 			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
 			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
@@ -302,8 +321,8 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
 	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
-	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	#output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	#log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
@@ -394,15 +413,20 @@ def HEsetup(ts):
 				 "put HE{0}-{1}-dac1-daccontrol_InternalRefEnable 1".format(crate, slot),
 				 "put HE{0}-{1}-dac2-daccontrol_RefSelect 0".format(crate, slot),
 				 "put HE{0}-{1}-dac2-daccontrol_ChannelMonitorEnable 1".format(crate, slot), 
-				 "put HE{0}-{1}-dac2-daccontrol_InternalRefEnable 1".format(crate, slot)
+				 "put HE{0}-{1}-dac2-daccontrol_InternalRefEnable 1".format(crate, slot),
+				 "put HE{0}-{1}-dac1-monchan 0x3f".format(crate, slot),
+				 "put HE{0}-{1}-dac2-monchan 0x3f".format(crate, slot),
+				 "put HE{0}-{1}-muxchannel 1".format(crate, slot)
 				 ]
 
-			cmds2 = ["put HE{0}-{1}-biasvoltage[1-48]_f 48*70.0".format(crate, slot)]
+			cmds2 = ["put HE{0}-{1}-biasvoltage[1-48]_f 48*69.0".format(crate, slot)]
 
 			cmds3 = ["put HE{0}-{1}-peltier_stepseconds 900".format(crate, slot),
 				 "put HE{0}-{1}-peltier_targettemperature_f 22.0".format(crate, slot),
 				 "put HE{0}-{1}-peltier_adjustment_f 0.25".format(crate, slot),
-				 "put HE{0}-{1}-peltier_control 1".format(crate, slot)
+				 "put HE{0}-{1}-peltier_control 1".format(crate, slot),
+				 "put HE{0}-{1}-peltier_enable 1".format(crate, slot),
+				 "put HE{0}-{1}-SetPeltierVoltage_f 1.".format(crate, slot)
 				 ]
 
 			if ts.name != "HEoven":
@@ -453,6 +477,7 @@ def record(ts=False, path="data/unsorted", scale=0):
 #	log += log_version(ts)
 	if ts.name != "HEoven":
 		log += log_temp(ts)		# Temperature
+		log += log_humidity(ts)		# Humidity
 	log += "\n"
 	log += '%% USERS\n'
 	log += getoutput('w')
@@ -497,7 +522,7 @@ if __name__ == "__main__":
 	# Script arguments:
 	parser = OptionParser()
 	parser.add_option("-t", "--teststand", dest="ts",
-		default="904",
+		default="HEcharm",
 		help="The name of the teststand you want to use (default is \"904\"). Unless you specify the path, the directory will be put in \"data\".",
 		metavar="STR"
 	)
@@ -571,14 +596,14 @@ if __name__ == "__main__":
 		except KeyboardInterrupt:
 			print "bye!"
 			sys.exit()
-		except Exception as ex:
-			nfailed_tries += 1
-			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
-			print ex
-			if nfailed_tries > 10:
-				print "System is in a bad state, stopping the logger nicely and alerting experts..."
-				monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
-							     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
+		#except Exception as ex:
+	#		nfailed_tries += 1
+#			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+#			print ex
+#			if nfailed_tries > 10:
+#				print "System is in a bad state, stopping the logger nicely and alerting experts..."
+				#monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
+				#			     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
 				#sys.exit()
 			
 

@@ -285,12 +285,18 @@ def get_status(ts=None, crate=None):		# Perform basic checks of the ngCCMs:
 
 def get_power(ts=False):
 	output = {}
-	
+
 	if ts:
 		for crate in ts.fe_crates:
 			cmds = [
-				"get HE{0}-VIN_voltage_f".format(crate),
-				"get HE{0}-VIN_current_f".format(crate),
+				"get HE{0}-VIN_voltage_J13_Clk_f".format(crate),
+				"get HE{0}-VIN_voltage_J14_Cntrl_f".format(crate),
+				"get HE{0}-VIN_voltage_J15_Cntrl_f".format(crate),
+				"get HE{0}-VIN_voltage_J16_Clk_f".format(crate),
+				"get HE{0}-VIN_current_J13_Clk_f".format(crate),
+				"get HE{0}-VIN_current_J14_Cntrl_f".format(crate),
+				"get HE{0}-VIN_current_J15_Cntrl_f".format(crate),
+				"get HE{0}-VIN_current_J16_Clk_f".format(crate),
 			]
 			output[crate] = ngfec.send_commands(ts=ts, cmds=cmds)
 		return output
