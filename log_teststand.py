@@ -462,6 +462,41 @@ def HEtogglebkp_pwr(ts):
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
+def LEDon(ts):
+	for crate in ts.fe_crates:
+		cmds1 = ["put HE{0}-pulser-ledA-enable 1".format(crate),
+			 "put HE{0}-pulser-ledA-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
+			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
+
+			 "put HE{0}-pulser-ledB-enable 0".format(crate),
+			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
+			 "put HE{0}-pulser-ledB-width_f 5".format(crate),]
+		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+		for out in output:
+			print "{0} -> {1}".format(out["cmd"], out["result"])
+
+def LEDoff(ts):
+	for crate in ts.fe_crates:
+		cmds1 = ["put HE{0}-pulser-ledA-enable 0".format(crate),
+			 "put HE{0}-pulser-ledA-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
+			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
+
+			 "put HE{0}-pulser-ledB-enable 0".format(crate),
+			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
+			 "put HE{0}-pulser-ledB-width_f 5".format(crate),]
+		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+		for out in output:
+			print "{0} -> {1}".format(out["cmd"], out["result"])
+
+
 
 ## -----------------------
 ## -- Main logging order 
@@ -596,12 +631,12 @@ if __name__ == "__main__":
 		except KeyboardInterrupt:
 			print "bye!"
 			sys.exit()
-		#except Exception as ex:
-	#		nfailed_tries += 1
-#			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
-#			print ex
-#			if nfailed_tries > 10:
-#				print "System is in a bad state, stopping the logger nicely and alerting experts..."
+		except Exception as ex:
+			nfailed_tries += 1
+			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+			print ex
+			if nfailed_tries > 10:
+				print "System is in a bad state, stopping the logger nicely and alerting experts..."
 				#monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
 				#			     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
 				#sys.exit()
