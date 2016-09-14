@@ -40,6 +40,12 @@ class ControlRegisters:
         self.DbErr_cnt = 0
         self.fec_rxlos_cnt = 0
         self.fec_dv_down_cnt = 0
+
+class ControlLink:
+    def __init__(self):
+        self.fec1-qie_reset_early_cnt = 0
+        self.fec1-qie_reset_late_cnt = 0
+        self.HE1-mezz_scratch = '0xf 0xf 0xf 0xf'
     
 class QIERegisters:
     """A class to hold the expected QIE registers, and to store the current state of the ones we expect to change."""
@@ -216,6 +222,10 @@ that are expected to change"""
         for crate in ts.fe_crates:
             self.control[crate] = ControlRegisters(self.tstype)
 
+        self.controllinks = {}
+        for crate in ts.fe_crates:
+            self.controllinks[crate] = ControlLink()
+
         # Store the QIE information, put them in a list per crate, slot combo
         self.qies = {}
         for icrate, crate in enumerate(ts.fe_crates):
@@ -243,3 +253,5 @@ that are expected to change"""
         for icrate, crate in enumerate(ts.fe_crates):
             for slot in ts.qie_slots[icrate]:
                 self.controlcards[crate,slot] = ControlCardRegisters(self.tstype)
+
+        
