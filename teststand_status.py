@@ -43,9 +43,9 @@ class ControlRegisters:
 
 class ControlLink:
     def __init__(self):
-        self.fec1-qie_reset_early_cnt = 0
-        self.fec1-qie_reset_late_cnt = 0
-        self.HE1-mezz_scratch = '0xf 0xf 0xf 0xf'
+        self.qie_reset_early_cnt = 0
+        self.qie_reset_late_cnt = 0
+        self.mezz_scratch = '0xf 0xf 0xf 0xf'
     
 class QIERegisters:
     """A class to hold the expected QIE registers, and to store the current state of the ones we expect to change."""

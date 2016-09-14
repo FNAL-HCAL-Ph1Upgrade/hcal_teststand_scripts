@@ -192,7 +192,7 @@ def check_clocks(log_parsed):
 ## ------------------------
 
 
-def check_control_link(ts_status, control_link_status, log_parsed):
+def check_control_link(ts, control_link_status, log_parsed):
         result = True
         error = []
 	scale = 0
@@ -202,32 +202,40 @@ def check_control_link(ts_status, control_link_status, log_parsed):
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
 			try:
-				log_reg = log_parsed["registers"]["registers"]["get {0}".format(reg)]
-				if ("ERROR" in log_reg or "NACK" in log_reg):
-					result = False
-					scale = 3
-					error.append("Register ( {0}) contained error: {1} ".format(reg, log_reg))
-					send_email("Lost communication with ngccm","Register {0} returned {1}".format(reg, log_reg))
-					continue
 				if "scratch" in reg:
+					log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}".format(crate, reg)]
+					if ("ERROR" in log_reg or "NACK" in log_reg):
+						result = False
+						scale = 3
+						error.append("Register ( HE{0}-{1}) contained error: {2} ".format(crate, reg, log_reg))
+						send_email("Lost communication with ngccm","Register HE{0}-{1} returned {2}".format(crate, reg, log_reg))
+						continue
 					if getattr(clink_register, reg) != log_reg:
 						result = False
                                                 # probably SEU, so no need for an email ;-) 
-                                                error.append("NGCCM SEU candidate: get {0} returned {1}, we expected {2}".format(reg, log_reg, exp_reg))
+                                                error.append("NGCCM SEU candidate: get HE{0}-{1} returned {2}, we expected {3}".format(crate, reg, log_reg, exp_reg))
 						output = ngfec.send_commands(ts=ts,
-									     cmds=["put {0} {4}".format(reg, getattr(clink_register, reg))],
+									     cmds=["put HE{0}-{1} {2}".format(crate, reg, getattr(clink_register, "{0}".format(reg)))],
 									     script=True)
 						error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
 
 				else:
+					log_reg = log_parsed["registers"]["registers"]["get fec1-{0}".format(reg)]
+					if ("ERROR" in log_reg or "NACK" in log_reg):
+						result = False
+						scale = 3
+						error.append("Register (fec1-{0}) contained error: {1} ".format(reg, log_reg))
+						send_email("Lost communication with ngccm","Register fec1-{0} returned {1}".format(reg, log_reg))
+						continue
+
 					# these are the counters for qie reset
 					log_reg_i = int(log_reg,0)
-					old_reg = getattr(clink_register, reg)
+					old_reg = getattr(clink_register, reg.replace("fec1-",""))
 					if log_reg_i > old_reg:
 						# QIE reset was not on time
 						error.append("QIE reset out of time: get {0} returned {1}, previously it was {2}.".format(reg, log_reg, old_reg))
 						result = False
-						setattr(clink_register, reg, log_reg_i)
+						setattr(clink_register, reg.replace("fec1-",""), log_reg_i)
 						send_email("HE teststand ({0}): QIE reset problem".format(ts.name),
 							   "{0} went from {1} to {2}".format(reg, old_reg, log_reg_i))
 	
@@ -572,7 +580,7 @@ def check_registers(ts, ts_status, log_parsed, scale):
 	checks.append(check_bridges)
 	check_igloos = check_igloo_registers(ts, ts_status.igloos, log_parsed, scale)
 	checks.append(check_igloos)
-	check_controllinks = check_control_link(ts, ts_status.controllink, log_parsed)
+	check_controllinks = check_control_link(ts, ts_status.controllinks, log_parsed)
 	checks.append(check_controllinks)
 	return checks
 	
@@ -749,27 +757,27 @@ def handleErrors(ts, scale):
 		# turn off power supply
 		log += "Something terrible must be going on. I don't trust it. \nTURNING OFF THE POWER SUPPLY!!  \nPhew, we're safe. \nAlthough you'd better go and check it out."
 		print "ts_157.enable_power(num=8, enable=0)"		
-		#ts_157.enable_power(num=8, enable=0)		
+		ts_157.enable_power(num=8, enable=0)		
 	elif scale < 4:
 		if scale == 3:
 			# cycle PS
 			log += "Power cycling the power supply.. I hope this fixes it..\n"
 			print "ts_157.enable_power(num=8, enable=0)"
-			#ts_157.enable_power(num=8, enable=0)
+			ts_157.enable_power(num=8, enable=0)
 			sleep(1)
 			print "ts_157.enable_power(num=8, enable=1)"
-			#ts_157.enable_power(num=8, enable=1)
+			ts_157.enable_power(num=8, enable=1)
 			sleep(20)
 		if scale >= 2:
 			# bkp_power_enable cycle
 			log += "Doing bkp_power_enable 0 and 1 cycle.\n"
 			print "HEsetup.HEtogglebkp_pwr(ts)"
-			#HEsetup.HEtogglebkp_pwr(ts)
+			HEsetup.HEtogglebkp_pwr(ts)
 		if scale >= 1:
 			# bkp reset
 			log += "Doing bkp_reset.\n"
 			print "HEsetup.HEreset(ts)"
-			#HEsetup.HEreset(ts)
+			HEsetup.HEreset(ts)
 			log += "Setting up the system again. We should be back in business.\n"
 			HEsetup.HEsetup(ts)
 		else:
@@ -856,7 +864,6 @@ Thanks!!
 			checks.append(check_temps(ts, ts_status, parsed))
 			checks.append(check_humidity(ts, ts_status, parsed))
 		        checks.append(check_clocks(parsed))
-			checks.append(check_control_link)
 			checks.append(check_link_number(ts_status, parsed))
 			checks.append(check_link_orbits(parsed))
 			checks.append(check_link_adc(ts_status, parsed))
@@ -891,7 +898,7 @@ Thanks!!
 				error_scales = [c.scale for c in critical]
 				max_error_scale = max(error_scales)
 
-				handle_log = handleErrors(ts, max_error_scale) # Turn off for now
+				handle_log = handleErrors(ts, max_error_scale)
 				email_body += handle_log
 				error_log += handle_log
 

@@ -128,6 +128,7 @@ def log_registers_crate(ts, crate, scale):
 		#"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
 		#"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
 		"get HE{0}-bkp_pwr_bad".format(crate),
+		"get HE{0}-mezz_scratch".format(crate),
 		"get fec1-qie_reset_cnt",
 		"get fec1-sfp1_status.RxLOS",
 		"get fec1-qie_reset_early_cnt",
@@ -577,7 +578,7 @@ def record_fast(ts=False, ts_status=False, path="data/unsorted"):
 	log = log_prbs(ts, ts_status)
 	if log != "":
 		t1 = time_string()
-		log = "%% TIME\n{1}\n".format(t1) + log 
+		log = "%% TIME\n{0}\n".format(t1) + log 
 		t_string = t1[:-4]
 		path += "/{0}".format(t_string[:-7])
 		if not os.path.exists(path):
@@ -714,10 +715,10 @@ if __name__ == "__main__":
 			sys.exit()
 		except Exception as ex:
 			nfailed_tries += 1
-			print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
-			print ex
-			if nfailed_tries > 10:
-				print "System is in a bad state, stopping the logger nicely and alerting experts..."
+		 	print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+		 	print ex
+		 	if nfailed_tries > 10:
+		 		print "System is in a bad state, stopping the logger nicely and alerting experts..."
 				#monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
 				#			     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
 				#sys.exit()
