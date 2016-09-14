@@ -109,8 +109,16 @@ def check_temps(ts, ts_status, log_parsed):
 							if tempdiff > 3:
 								send_email("HE teststand ({0}): Temperature deviation".format(ts.name),
 									   "Measured temperature was {0}".format(temp_f))
-								# re-enable the Peltier
-								HEsetup.HEsetup(ts,"peltier")
+								# re-enable the Peltier if there is not much peltier voltage
+								volt = log_parsed["registers"]["registers"]["get HE{0}-{1}-PeltierVoltage_f".format(i,j)]
+								curr = log_parsed["registers"]["registers"]["get HE{0}-{1}-PeltierCurrent_f".format(i,j)]
+								# if it's too warm:
+								if temp_f > ts_status.controlcards[i,j].peltier_targettemperature_f:
+									if volt < 0.2 or curr < 0.01:
+										HEsetup.HEsetup(ts,"peltier")
+								else:
+									if volt > 0.8 or curr > 0.2:
+										HEsetup.HEsetup(ts,"peltier")
                                                 else:
                                                         result = True
                                         except ValueError:
@@ -120,7 +128,7 @@ def check_temps(ts, ts_status, log_parsed):
 	except Exception as ex:
 		error += str(ex)
 		print ex
-	return check(result=result, error=error.strip(), scale=1)
+	return check(result=result, error=error.strip(), scale=0)
 
 
 ## ---------------------
@@ -128,7 +136,8 @@ def check_temps(ts, ts_status, log_parsed):
 ## ---------------------
 
 def check_humidity(ts, ts_status, log_parsed):
-	result = False
+	result = True
+	scale = 0
 	error = ""
 	try:
 		temps = []
@@ -143,9 +152,9 @@ def check_humidity(ts, ts_status, log_parsed):
                                                 temps.append(temp_f)
                                                 if temp_f > 65:
                                                         error += "ERROR: High humidity in crate {0}, slot {1}: measured was {2}".format(i,j, temp)
-                                                        #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
-                                                else:
-                                                        result = True
+							scale = 4
+                                                        send_email("Humidity alert!","Measured humidity was {0}".format(temp_f))
+
                                         except ValueError:
                                                 error += "No valid humidity for crate {0}, slot {1}: {2}\n".format(i,j,temp)
                                                 temps.append(-1)
@@ -153,7 +162,7 @@ def check_humidity(ts, ts_status, log_parsed):
 	except Exception as ex:
 		error += str(ex)
 		print ex
-	return check(result=result, error=error.strip(), scale=4)
+	return check(result=result, error=error.strip(), scale=scale)
 
 
 ## ----------------------
@@ -171,46 +180,68 @@ def check_clocks(log_parsed):
 			result = True
 		else:
 			error += "ERROR: get fec1-LHC_clk_freq -> {0} ({1})\n".format(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], lhc_clock)
+			send_email("Weird LHC clock frequency", 
+				   "get fec1-LHC_clk_freq -> {0} ({1})\n".format(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], lhc_clock))
 	except Exception as ex:
 		error += str(ex)
 		print ex
 	return check(result=result, error=error.strip(), scale=0) # TODO: check if this is reasonable, is this a FC7/backend problem?
 
-## ---------------------------
-## -- Obsolete check for HE --
-## ---------------------------
+## ------------------------
+## -- Check Control link --
+## ------------------------
 
-def check_ngccm_static_regs(log_parsed):
-	# Do this stuff for the igloo and bridge
-	result_zeroes = False
-	result_ones = False
-	error = ""
-	try:
-		if log_parsed["registers"]["registers"]["get HE1-mezz_ONES"] == "'0xffffffff 0xffffffff 0xffffffff 0xffffffff'":
-			result_ones = True
-		else:
-			error += "ERROR: get HE1-mezz_ONES -> {0}\n".format(log_parsed["registers"]["registers"]["get HE1-mezz_ONES"])
-	except Exception as ex:
-		print ex
-	try:
-		if log_parsed["registers"]["registers"]["get HE1-mezz_ZEROES"] == "'0 0 0 0'":
-			result_zeroes = True
-		else:
-			error += "ERROR: get HE1-mezz_ZEROES -> {0}\n".format(log_parsed["registers"]["registers"]["get HE1-mezz_ZEROES"])
-	except Exception as ex:
-		error += str(ex)
-		print ex
-	result = False
-	if result_zeroes and result_ones:
-		result = True
-	return check(result=result, error=error.strip(), scale=0)
 
-def check_control_link(ts_status, log_parsed):
-	# check whether  fec1-qie_reset_early",
-	#"get fec1-qie_reset_ontime",
-        #                "get fec1-qie_reset_late",
-	# increase, then send email. 
-	pass
+def check_control_link(ts_status, control_link_status, log_parsed):
+        result = True
+        error = []
+	scale = 0
+	for crate, clink_register in control_link_status.iteritems():
+		regs = [reg for reg in dir(clink_register) if not reg.startswith("__")]
+		
+                for reg in regs:
+                        # Find it in the logs, and check whether it matches
+			try:
+				log_reg = log_parsed["registers"]["registers"]["get {0}".format(reg)]
+				if ("ERROR" in log_reg or "NACK" in log_reg):
+					result = False
+					scale = 3
+					error.append("Register ( {0}) contained error: {1} ".format(reg, log_reg))
+					send_email("Lost communication with ngccm","Register {0} returned {1}".format(reg, log_reg))
+					continue
+				if "scratch" in reg:
+					if getattr(clink_register, reg) != log_reg:
+						result = False
+                                                # probably SEU, so no need for an email ;-) 
+                                                error.append("NGCCM SEU candidate: get {0} returned {1}, we expected {2}".format(reg, log_reg, exp_reg))
+						output = ngfec.send_commands(ts=ts,
+									     cmds=["put {0} {4}".format(reg, getattr(clink_register, reg))],
+									     script=True)
+						error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
+
+				else:
+					# these are the counters for qie reset
+					log_reg_i = int(log_reg,0)
+					old_reg = getattr(clink_register, reg)
+					if log_reg_i > old_reg:
+						# QIE reset was not on time
+						error.append("QIE reset out of time: get {0} returned {1}, previously it was {2}.".format(reg, log_reg, old_reg))
+						result = False
+						setattr(clink_register, reg, log_reg_i)
+						send_email("HE teststand ({0}): QIE reset problem".format(ts.name),
+							   "{0} went from {1} to {2}".format(reg, old_reg, log_reg_i))
+	
+			except KeyError:
+				result = False
+				scale = 0
+				error.append("Register {0} could not be found in the log.".format(reg))
+			except ValueError:
+				result = False
+				scale = 0
+				error.append("Could not convert {0} to integer ({1})".format(log_reg, reg))
+
+        return check(result=result, error="\n".join(error), scale=scale)
+
 
 ## -------------------------------
 ## -- Check status of the links --
@@ -320,13 +351,15 @@ def check_qie_registers(qie_status, log_parsed):
 	scale = 0
         for crate_slot_qie, qie_register in qie_status.iteritems():
                 crate, slot, qienum = crate_slot_qie
+		if (qienum >= 25 or qienum <= 36):
+			continue
                 # do the checks on all qie registers
                 regs = [reg for reg in dir(qie_register) if not reg.startswith("__")]
                 for reg in regs:
                         # Find it in the logs, and check whether it matches
 			try:
 				log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-QIE{2}_{3}".format(crate, slot, qienum, reg)]
-				if "ERROR" in log_reg or "NACK" in log_reg:
+				if ("ERROR" in log_reg or "NACK" in log_reg):
 					result = False
 					scale = 1
 					error.append("QIE register ( HE{0}-{1}-QIE{2}_{3}) contained error: {4} ".format(crate, slot, qienum, reg, log_reg))
@@ -339,11 +372,11 @@ def check_qie_registers(qie_status, log_parsed):
 					result = False
 			except KeyError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("QIE register HE{0}-{1}-QIE{2}_{3} could not be found in the log.".format(crate, slot, qienum, reg))
 			except ValueError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Could not convert {0} to integer (QIE HE{1}-{2}-QIE{3}_{4})".format(log_reg, crate, slot, qienum, reg))
 
         return check(result=result, error="\n".join(error), scale=scale)
@@ -373,9 +406,10 @@ def check_controlcard_registers(ts, controlcard_status, log_parsed):
                         # Find it in the logs, and check whether it matches
 			try:
                             log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
-			    if ("NACK" in log_reg or "ERROR" in log_reg) and "biasmon" in reg:
+			    if ("NACK" in log_reg or "ERROR" in log_reg):
 				    error.append("Control Card SEU candidate: get HE{0}-{1}-{2} returned {3}".format(crate, slot, reg, log_reg))
 				    result = False
+				    scale = 2
 				    continue
 
                             exp_reg = getattr(cc_register, reg)
@@ -391,18 +425,16 @@ def check_controlcard_registers(ts, controlcard_status, log_parsed):
                                             error.append("Control Card error: get HE{0}-{1}-{2} returned {3}, we expected {4}.".format(crate, slot, reg, log_reg, exp_reg))
                                             result = False
 					    if "peltier_control" in reg:
-						    # need to reset the temperature control, probably ngccm was restarted, so just redo full setup
-						    # TODO do this in a cleaner way
-						    from log_teststand import HEsetup
-						    HEsetup(ts)
+						    # need to reset the temperature control
+						    HEsetup.HEsetup(ts,"peltier")
                                             
 			except KeyError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Control card register HE{0}-{1}-{2} could not be found in the log.".format(crate, slot, reg))
 			except ValueError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Could not convert {0} to integer or float (Control card HE{1}-{2}-{3})".format(log_reg, crate, slot, reg))
 
         return check(result=result, error="\n".join(error), scale=scale)
@@ -413,12 +445,14 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 	scale = 0
         for crate_slot_card, bridge_register in bridge_status.iteritems():
                 crate, slot, qiecard = crate_slot_card
+		if qiecard == 3:
+			continue
 		# do the checks on all bridge registers
                 regs = [reg for reg in dir(bridge_register) if (not reg.startswith("__") and not "update" in reg )] 
                 for reg in regs:
 			try:
 				log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-B_{3}".format(crate, slot, qiecard, reg)]
-				if "ERROR" in log_reg or "NACK" in log_reg:
+				if ("ERROR" in log_reg or "NACK" in log_reg):
 					result = False
 					scale = 1
 					error.append("Bridge register ( HE{0}-{1}-{2}-B_{3}) contained error: {4} ".format(crate, slot, qiecard, reg, log_reg))
@@ -432,6 +466,7 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 						getattr(bridge_register, "update_{0}".format(reg))(log_reg_i)
 					else:
 						result = False
+						scale = 1
 						error.append("Bridge error: Counter did not go up: get HE{0}-{1}-{2}-B_{3} returned {4} again.".format(crate, slot, qiecard, reg, log_reg))
 				else:
 					exp_reg = getattr(bridge_register, reg)
@@ -448,31 +483,33 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 
 			except KeyError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Bridge register HE{0}-{1}-{2}-B_{3} could not be found in the log.".format(crate, slot, qiecard, reg))
 			except ValueError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Could not convert {0} to integer (Bridge HE{1}-{2}-{3}-B_{4})".format(log_reg, crate, slot, qiecard, reg))
 				
         return check(result=result, error="\n".join(error), scale=scale)
 
 
-def check_igloo_registers(ts, igloo_status, log_parsed, scale):
+def check_igloo_registers(ts, igloo_status, log_parsed, logging_scale):
         result = True
         error = []
 	scale = 0
         for crate_slot_card, igloo_register in igloo_status.iteritems():
                 crate, slot, qiecard = crate_slot_card
+		if qiecard == 3:
+			continue
                 # do the checks on all igloo registers
                 regs = [reg for reg in dir(igloo_register) if (not reg.startswith("__") and not "update" in reg )] 
                 for reg in regs:
 			# Skip some registers for the sparse log
-			if scale == 0 and "CntrReg" in reg:
+			if logging_scale == 0 and "CntrReg" in reg:
 				continue
-			if scale == 0 and "_ck_ph" in reg and not "Qie41_ck_ph" in reg:
+			if logging_scale == 0 and "_ck_ph" in reg and not "Qie41_ck_ph" in reg:
 				continue
-			if scale == 0 and "SPARE" in reg:
+			if logging_scale == 0 and "SPARE" in reg:
 				continue
 			try:
 				log_reg = ""
@@ -480,7 +517,7 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 					log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}".format(crate, slot, reg)]
 				else:
 					log_reg = log_parsed["registers"]["registers"]["get HE{0}-{1}-{2}-i_{3}".format(crate, slot, qiecard, reg)]
-				if "ERROR" in log_reg or "NACK" in log_reg:
+				if ("ERROR" in log_reg or "NACK" in log_reg):
 					result = False
 					scale = 1
 					error.append("Igloo register ( HE{0}-{1}-{2}-i_{3}) contained error: {4} ".format(crate, slot, qiecard, reg, log_reg))
@@ -497,6 +534,7 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 						getattr(igloo_register, "update_{0}".format(reg))(log_reg_i)
 					else:
 						result = False
+						scale = 1
 						error.append("Igloo error: Counter did not go up: get HE{0}-{1}-{2}-i_{3} returned {4} again.".format(crate, slot, qiecard, reg, log_reg))
 				else:
 					exp_reg = getattr(igloo_register, reg)
@@ -513,11 +551,11 @@ def check_igloo_registers(ts, igloo_status, log_parsed, scale):
 
 			except KeyError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Igloo register HE{0}-{1}-{2}-i_{3} could not be found in the log.".format(crate, slot, qiecard, reg))
 			except ValueError:
 				result = False
-				scale = 1
+				scale = 0
 				error.append("Could not convert {0} to integer (Igloo HE{1}-{2}-{3}-i_{4})".format(log_reg, crate, slot, qiecard, reg))
 				
         return check(result=result, error="\n".join(error), scale=scale)
@@ -534,6 +572,8 @@ def check_registers(ts, ts_status, log_parsed, scale):
 	checks.append(check_bridges)
 	check_igloos = check_igloo_registers(ts, ts_status.igloos, log_parsed, scale)
 	checks.append(check_igloos)
+	check_controllinks = check_control_link(ts, ts_status.controllink, log_parsed)
+	checks.append(check_controllinks)
 	return checks
 	
 
@@ -543,20 +583,38 @@ def check_registers(ts, ts_status, log_parsed, scale):
 
 def check_power(log_parsed):
 	# Cannot test at FNAL
-	result = False
+	result = True
+	scale = 0
 	error = ""
 	try:
-		V = float(log_parsed["power"]["lines"][0].split()[0])
-		I = float(log_parsed["power"]["lines"][1].split()[0])
-		if (I > 1.13 and I < 3.9) or ( V == -1):
-#		if (I > 3.0 and I < 3.6) or ( V == -1):
-			result = True
+		V = float(log_parsed["power"]["lines"][0].split()[1])
+		I = float(log_parsed["power"]["lines"][1].split()[1])
+		if V > 12.2 or V < 11.8:
+			result = False
+			scale = 4
+			error += "ERROR: The voltage to the FE crate is not good! I = {0}, V = {1}\n".format(I, V)
+			send_email("PS voltage no longer 12V",
+				   "Voltage was {0}V".format(V))
+		elif I > 8 or I < 5:
+			result = False
+			scale = 3
+			error += "ERROR: The current to the FE crate is off! I = {0}, V = {1}\n".format(I, V)
+			send_email("Current draw seems off", 
+				   "Voltage is {0}V, current is {1}A.".format(V,I))
 		else:
-			error += "ERROR: The current to the FE crate is not good! I = {0}, V = {1}\n".format(I, V)
+			for i in range(2,6):
+				V_bkp = float(log_parsed["power"]["lines"][i].split()[-1])
+				if V_bkp > 10 or V_bkp < 9:
+					result = False
+					scale = 4
+					error += "The backplane voltage is no longer in the 9--10V range! It is {0}".format(V_bkp)
+					send_email("Backplane voltage out of range", 
+						   "Voltage is now {0}".format(V_bkp))
+
 	except Exception as ex:
 		error += str(ex)
 		print ex
-	return check(result=result, error=error.strip(), scale=2)
+	return check(result=result, error=error.strip(), scale=scale)
 
 
 ## -------------------------
@@ -601,7 +659,10 @@ def send_email(subject="", body=""):
 #			"yw5mj@virginia.edu",
 #			"whitbeck.andrew@gmail.com",
                         "pastika@fnal.gov",
-			"nadja.strobbe@cern.ch"
+			"nadja.strobbe@cern.ch",
+			"ozgur.sahin@cern.ch",
+			"caleb@cern.ch",
+			"sezen.sekmen@cern.ch"
 #			"danila.tlisov@cern.ch",
 #			"pavel.bunin@cern.ch"
 		],
@@ -687,18 +748,28 @@ def handleErrors(ts, scale):
 	if scale == 4:
 		# turn off power supply
 		log += "Something terrible must be going on. I don't trust it. \nTURNING OFF THE POWER SUPPLY!!  \nPhew, we're safe. \nAlthough you'd better go and check it out."
+		print "ts_157.enable_power(num=8, enable=0)"		
+		#ts_157.enable_power(num=8, enable=0)		
 	elif scale < 4:
 		if scale == 3:
 			# cycle PS
 			log += "Power cycling the power supply.. I hope this fixes it..\n"
+			print "ts_157.enable_power(num=8, enable=0)"
+			#ts_157.enable_power(num=8, enable=0)
+			sleep(1)
+			print "ts_157.enable_power(num=8, enable=1)"
+			#ts_157.enable_power(num=8, enable=1)
+			sleep(20)
 		if scale >= 2:
 			# bkp_power_enable cycle
 			log += "Doing bkp_power_enable 0 and 1 cycle.\n"
-			HEsetup.HEtogglebkp_pwr(ts)
+			print "HEsetup.HEtogglebkp_pwr(ts)"
+			#HEsetup.HEtogglebkp_pwr(ts)
 		if scale >= 1:
 			# bkp reset
 			log += "Doing bkp_reset.\n"
-			HEsetup.HEreset(ts)
+			print "HEsetup.HEreset(ts)"
+			#HEsetup.HEreset(ts)
 			log += "Setting up the system again. We should be back in business.\n"
 			HEsetup.HEsetup(ts)
 		else:
@@ -780,27 +851,18 @@ Thanks!!
 		# Perform checks:
 		error_log = ""
 		checks = []
+		checks.append(check_power(parsed))
 		if ts.name != "HEoven":
 			checks.append(check_temps(ts, ts_status, parsed))
 			checks.append(check_humidity(ts, ts_status, parsed))
-		        #checks.append(check_clocks(parsed))
-		        #cntrl_link = check_ngccm_static_regs(parsed)
-			#checks.append(cntrl_link)
+		        checks.append(check_clocks(parsed))
+			checks.append(check_control_link)
 			checks.append(check_link_number(ts_status, parsed))
 			checks.append(check_link_orbits(parsed))
 			checks.append(check_link_adc(ts_status, parsed))
-		#checks.append(check_power(parsed))
-		#checks.append(check_cntrl_link(parsed))
                 checks.extend(check_registers(ts, ts_status, parsed, scale))
 
 		#checks.append(check(result=False, scale=1, error="This is a fake error message"))
-					
-		# Control link status:
-		#if status_last != -1:
-		#	if cntrl_link.result != status_last:
-		#		pass
-		#		send_email(subject="Update: control link", body="The state of the control link changed from {0} to {1}.".format(status_last, cntrl_link.result))
-		#status_last = cntrl_link.result
 					
 		# Deal with failed checks:
 		failed = [c for c in checks if not c.result]
@@ -829,7 +891,7 @@ Thanks!!
 				error_scales = [c.scale for c in critical]
 				max_error_scale = max(error_scales)
 
-				handle_log = handleErrors(ts, max_error_scale)
+				handle_log = handleErrors(ts, max_error_scale) # Turn off for now
 				email_body += handle_log
 				error_log += handle_log
 
@@ -845,10 +907,6 @@ Thanks!!
 					error_log += str(ex)
 					error_log += "\n"
 							
-				if [c for c in critical if c.scale > 1]:
-					print "> Waiting 2 minutes after the power cycle before going back to monitoring logs ..."
-					sleep(2*60)
-
 			else: 
 				# only send email
 				pass

@@ -16,7 +16,7 @@ from optparse import OptionParser
 from time import sleep, time,strftime
 import numpy
 from commands import getoutput
-import monitor_teststand
+import monitor_teststand, HEsetup
 from teststand_status import TestStandStatus
 
 # CLASSES:
@@ -125,14 +125,14 @@ def log_registers_crate(ts, crate, scale):
 	  
 	cmds = [
 		"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
-		"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
-		"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
+		#"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
+		#"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
 		"get HE{0}-bkp_pwr_bad".format(crate),
 		"get fec1-qie_reset_cnt",
 		"get fec1-sfp1_status.RxLOS",
-		"get fec1-qie_reset_early",
-		"get fec1-qie_reset_ontime",
-		"get fec1-qie_reset_late",
+		"get fec1-qie_reset_early_cnt",
+		"get fec1-qie_reset_ontime_cnt",
+		"get fec1-qie_reset_late_cnt",
 		]
 			
 		#for i in slots:
@@ -493,6 +493,27 @@ def LEDoff(ts):
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
 
+def BVscan(ts, biasVoltages):
+	#Scan over bias voltages
+	print "Starting biasvoltage scan"
+	current_time = time_string()[:-4]
+	for bv in biasVoltages:
+		for i, crate in enumerate(ts.fe_crates):
+			for slot in ts.qie_slots[i]:
+				cmds1 = ["put HE{0}-{1}-biasvoltage[1-48]_f 48*{2}".format(crate, slot, bv),]
+				output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+				for out in output:
+					print "{0} -> {1}".format(out["cmd"], out["result"])
+	
+		sleep(2)
+		uhtr.get_histos(ts,
+				n_orbits=100000,
+				sepCapID=0,
+				file_out_base="{0}/histo_BV{2}_{1}".format("data/BVScan", current_time, str(bv).replace(".", "p")),
+				script = False)
+
+	#Return BV to default value 
+	HEsetup.HEsetup(ts, "bias")
 
 ## -----------------------
 ## -- Main logging order 
@@ -556,7 +577,7 @@ def record_fast(ts=False, ts_status=False, path="data/unsorted"):
 	log = log_prbs(ts, ts_status)
 	if log != "":
 		t1 = time_string()
-		#log.insert(0, "%% TIMES\n{0}\n{1}\n\n".format(t0, t1)) # What was this supposed to do? it doesn't work...
+		log = "%% TIME\n{0}\n{1}\n".format(t0, t1) + log 
 		t_string = time_string()[:-4]
 		path += "/{0}".format(t_string[:-7])
 		if not os.path.exists(path):
@@ -597,6 +618,11 @@ if __name__ == "__main__":
 		help="The full logging period in minutes (default is 0).",
 		metavar="FLOAT"
 	)
+	parser.add_option("-b", "--bias", dest="bias",
+		default=0,
+		help="The bias voltage scan period in hours (default is 0).",
+		metavar="FLOAT"
+	)
 	parser.add_option("-T", "--time", dest="ptime",
 		default='',
 		help="The full logging time in a day (default is empty).",
@@ -614,6 +640,7 @@ if __name__ == "__main__":
 		path = "data/" + options.out
 	period_long = float(options.full)
 	period_fast = float(options.prbs)
+	period_bias = float(options.bias)
 
 	# Set up teststand:
 	ts = teststand(name)
@@ -630,18 +657,26 @@ if __name__ == "__main__":
 	t0 = 0
 	t0_fast = 0
 	t0_long = 0
+	t0_bias = 0
 	nfailed_tries = 0
 	while z == True:
 		dt = time() - t0
 		dt_long = time() - t0_long
+		dt_bias = time() - t0_bias
 		dt_fast = time() - t0_fast
 		try:
+			if (period_bias!=0) and (dt_bias > period_bias*60*60):
+				t0_bias = time()
+				# do BV scan
+				BVscan(ts, [60., 65., 66., 67., 68., 69., 70.])
+				print "End BV scan"
 			if (period_long!=0) and (dt_long > period_long*60):
 				t0_long = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 				# also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 1)
 				# take an LED run
+####JOE TEMP FINDE ME!!!
 				print "Taking LED run"
 				LEDon(ts)
 				uhtr.get_histos(ts,
