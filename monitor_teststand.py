@@ -9,6 +9,7 @@
 from hcal_teststand import *
 from hcal_teststand.hcal_teststand import teststand
 from hcal_teststand.utilities import *
+import HEsetup
 import sys
 import os
 from optparse import OptionParser
@@ -102,12 +103,14 @@ def check_temps(ts, ts_status, log_parsed):
                                                 temps.append(temp_f)
 						tempdiff = abs(temp_f - ts_status.controlcards[i,j].peltier_targettemperature_f)
                                                 # Also check what the target temperature was:
-                                                if tempdiff > 1.5*ts_status.controlcards[i,j].peltier_adjustment_f:
+                                                if tempdiff > 2*ts_status.controlcards[i,j].peltier_adjustment_f:
                                                         error += "ERROR: Temperature deviation in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,ts_status.controlcards[i,j].peltier_targettemperature_f, temp)
                                                         #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
 							if tempdiff > 3:
 								send_email("HE teststand ({0}): Temperature deviation".format(ts.name),
 									   "Measured temperature was {0}".format(temp_f))
+								# re-enable the Peltier
+								HEsetup.HEsetup(ts,"peltier")
                                                 else:
                                                         result = True
                                         except ValueError:
@@ -139,7 +142,7 @@ def check_humidity(ts, ts_status, log_parsed):
                                                 temp_f = float(temp)
                                                 temps.append(temp_f)
                                                 if temp_f > 65:
-                                                        error += "ERROR: High humidity in crate {0}, slot {1}: target was {2}, measured was {3}".format(i,j,"<65%", temp)
+                                                        error += "ERROR: High humidity in crate {0}, slot {1}: measured was {2}".format(i,j, temp)
                                                         #send_email("Temperature deviation!","Measured temperature was {0}".format(temp_f))
                                                 else:
                                                         result = True
@@ -150,7 +153,7 @@ def check_humidity(ts, ts_status, log_parsed):
 	except Exception as ex:
 		error += str(ex)
 		print ex
-	return check(result=result, error=error.strip(), scale=1)
+	return check(result=result, error=error.strip(), scale=4)
 
 
 ## ----------------------
@@ -164,14 +167,14 @@ def check_clocks(log_parsed):
 		lhc_clock = -1
 		if "ERROR" not in log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"]:
 			lhc_clock = int(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], 16)
-		if lhc_clock > 400776 and lhc_clock < 400790: # changed from 400788 since fnal clock is at 400788
+		if lhc_clock > 400750 and lhc_clock < 400850: # changed from 400788 since fnal clock is at 400788
 			result = True
 		else:
 			error += "ERROR: get fec1-LHC_clk_freq -> {0} ({1})\n".format(log_parsed["registers"]["registers"]["get fec1-LHC_clk_freq"], lhc_clock)
 	except Exception as ex:
 		error += str(ex)
 		print ex
-	return check(result=result, error=error.strip(), scale=1)
+	return check(result=result, error=error.strip(), scale=0) # TODO: check if this is reasonable, is this a FC7/backend problem?
 
 ## ---------------------------
 ## -- Obsolete check for HE --
@@ -201,6 +204,13 @@ def check_ngccm_static_regs(log_parsed):
 	if result_zeroes and result_ones:
 		result = True
 	return check(result=result, error=error.strip(), scale=0)
+
+def check_control_link(ts_status, log_parsed):
+	# check whether  fec1-qie_reset_early",
+	#"get fec1-qie_reset_ontime",
+        #                "get fec1-qie_reset_late",
+	# increase, then send email. 
+	pass
 
 ## -------------------------------
 ## -- Check status of the links --
@@ -580,8 +590,8 @@ def send_email(subject="", body=""):
 	msg['From'] = "alerts@teststand.hcal"
 	msg['To'] = ""
 	
-	s = smtplib.SMTP_SSL('slmp-550-22.slc.westdc.net',465)
-	s.login("alerts@connivance.net", "Megash4rk")
+	s = smtplib.SMTP('hairstreak.theansw3r.com')
+        s.login("alerts@connivance.net", "lostmountainman66?")
 	s.sendmail(
 		"alerts@connivance.net", 
 		[
@@ -591,9 +601,9 @@ def send_email(subject="", body=""):
 #			"yw5mj@virginia.edu",
 #			"whitbeck.andrew@gmail.com",
                         "pastika@fnal.gov",
-			"nadja.strobbe@gmail.com",
-			"danila.tlisov@cern.ch",
-			"pavel.bunin@cern.ch"
+			"nadja.strobbe@cern.ch"
+#			"danila.tlisov@cern.ch",
+#			"pavel.bunin@cern.ch"
 		],
 		msg.as_string()
 	)
@@ -653,6 +663,50 @@ def printNiceLinkInfo(info):
 
 	return "".join(nice)
 
+
+
+# 0: only email
+
+# 1: bkp_reset
+#    - register wasn't as expected
+
+# 2: bkp_power_enable:
+#     - lost comm to RM (LBA from bridge, NACK)
+
+# 3: Cycle PS: 
+#    - NACK on ngccm
+
+# 4: Turn off PS: 
+#    - if bkp voltage > 10 V
+#    - if temp (card) > 60C
+#    - if humidity > 65%'
+
+
+def handleErrors(ts, scale):
+	log = "The maximum error scale that was encountered was %s.\n" % (scale)
+	if scale == 4:
+		# turn off power supply
+		log += "Something terrible must be going on. I don't trust it. \nTURNING OFF THE POWER SUPPLY!!  \nPhew, we're safe. \nAlthough you'd better go and check it out."
+	elif scale < 4:
+		if scale == 3:
+			# cycle PS
+			log += "Power cycling the power supply.. I hope this fixes it..\n"
+		if scale >= 2:
+			# bkp_power_enable cycle
+			log += "Doing bkp_power_enable 0 and 1 cycle.\n"
+			HEsetup.HEtogglebkp_pwr(ts)
+		if scale >= 1:
+			# bkp reset
+			log += "Doing bkp_reset.\n"
+			HEsetup.HEreset(ts)
+			log += "Setting up the system again. We should be back in business.\n"
+			HEsetup.HEsetup(ts)
+		else:
+			print "I'm sending a mail... No need to do anything else... "
+	else:
+		print "Unknown error scale"
+	return log
+
 ## ---------------------------
 ## -- Main monitor function --
 ## ---------------------------
@@ -679,7 +733,7 @@ Please check the system asap!
 
 Thanks!!
 """
-		#send_email(subject="!!Problem with HE log_teststand.py ({0})!!".format(ts.name), body=email_body)
+		send_email(subject="!!Problem with HE log_teststand.py ({0})!!".format(ts.name), body=email_body)
 		return
 	else:
 		print "> Monitoring log {0} ...".format(logpath)
@@ -703,14 +757,15 @@ Thanks!!
                                                         ts_status.links.CDRreset,
                                                         ts_status.links.GTXreset)
                                 print "Checking link status again, and sending email"
-                                sleep(2)
+                                sleep(5)
                                 raw_status = uhtr.parseLinkStatus(uhtr.linkStatus_per_uhtr(ts=ts,
                                                                                            crate=uhtr_.crate,
                                                                                            slot=uhtr_.slot,
                                                                                            ip=uhtr_.ip,
                                                                                            control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
 				link_error_info = printNiceLinkInfo(statData)
-                                #send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), body="Link status was: \n{0}\n\nuMNio status was: \n{1}\n\nLink status after reinitialization is\n{2}".format(link_error_info, umniostat, raw_status[1]))
+                                send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), 
+					   body="Link status was: \n{0}\n\n\nLink status after reinitialization is\n{1}".format(link_error_info, raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
@@ -770,27 +825,19 @@ Thanks!!
 					email_body += "\n"
 				email_body += "\n"
 				
-				# Try to fix the major problems immediately
-				# Power cycle if any have scale 2 or greater:
-				#if [c for c in critical if c.scale > 1]:
-					#power_log = power_cycle()
-					#power_log = setup_157()
-					#power_log = str(disable_qie(ts))
-					#email_body += "A power cycle was triggered. Here's how it went:\n\n"
-					#email_body += "A power enable cycle was triggered. Here's how it went:\n\n"
-					#email_body += "A QIE card disable was triggered. Here's how it went:\n\n"
-					#email_body += power_log
-					#email_body += "\n"
-					#error_log += "A power cycle was triggered. Here's how it went:\n\n"
-					#error_log += "A power enable cycle was triggered. Here's how it went:\n\n"
-					#error_log += "A QIE card disable was triggered. Here's how it went:\n\n"
-					#error_log += power_log
-							
+				# Try to fix the problems immediately
+				error_scales = [c.scale for c in critical]
+				max_error_scale = max(error_scales)
+
+				handle_log = handleErrors(ts, max_error_scale)
+				email_body += handle_log
+				error_log += handle_log
+
 				# Send email:
 				email_body += "\nHave a nice day!"
 				try:
 					print "> Sending email ..."
-					#send_email(subject=email_subject, body=email_body)
+					send_email(subject=email_subject, body=email_body)
 					print "> Email sent."
 				except Exception as ex:
 					print "ERROR!!!"
@@ -801,6 +848,10 @@ Thanks!!
 				if [c for c in critical if c.scale > 1]:
 					print "> Waiting 2 minutes after the power cycle before going back to monitoring logs ..."
 					sleep(2*60)
+
+			else: 
+				# only send email
+				pass
 							
 			# Write error log:
 			logpathinfo = logpath.rpartition("/")
@@ -975,8 +1026,6 @@ if __name__ == "__main__":
 					t_last_log = time()
 					n_sleep = 0
 				
-#					z = False
-#					break
 			else:
 				if dt_last_log > 60*60:
 					email_body = "ERROR: I think the logging code crashed."

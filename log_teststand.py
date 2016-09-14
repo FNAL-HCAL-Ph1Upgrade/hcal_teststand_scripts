@@ -7,6 +7,7 @@
 ####################################################################
 
 from hcal_teststand import *
+import hcal_teststand.uhtr as uhtr
 from hcal_teststand.hcal_teststand import teststand
 from hcal_teststand.utilities import *
 import sys
@@ -34,11 +35,37 @@ def log_temp(ts):
 		for crate, cratetemps in enumerate(temps):
 			# cratetemps is a list of temperatures
 			for itemps, temps in enumerate(cratetemps):
+				# bit of a hack now
 				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
-									     ts.qie_slots[crate][itemps/2],
-									     temps)
+									     ts.qie_slots[crate][itemps],
+									     temps[0])
 
 	return log
+def log_prbs(ts, ts_status):
+	log = ""
+
+	for crate in ts.fe_crates:
+		cmds = [
+			"get HE{0}-fec_rx_prbs_error_cnt".format(crate),
+			"get HE{0}-mezz_rx_prbs_error_cnt".format(crate),
+			"get HE{0}-b2b_rx_prbs_error_cnt".format(crate),		
+			"get HE{0}-sb2b_rx_prbs_error_cnt".format(crate),
+			"get fec{0}-SinErr_cnt".format(crate),
+			"get fec{0}-DbErr_cnt".format(crate),
+			"get HE{0}-fec_rxlos_cnt".format(crate),
+			"get HE{0}-fec_dv_down_cnt".format(crate),
+			]
+		output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+		for result in output:
+			# check if it's different:
+			if getattr(ts_status.control[crate], result["cmd"].split(" ")[-1].split("-")[-1]) != result["result"]:
+				log += "{0} -> {1}\n".format(result["cmd"], result["result"])
+				setattr(ts_status.control[crate], result["cmd"].split(" ")[-1].split("-")[-1], result["result"])
+
+#		if output != log_last[-1]:
+#			log += output
+	return log
+
 
 def log_humidity(ts):
 	log = ""
@@ -61,9 +88,9 @@ def log_power(ts):
 	log = "%% POWER\n"
 	t0 = time_string()		# Get the time before. I get the time again after everything.
 	#power_fe = ts_157.get_power(ts,6)
-	#power_fe8 = ts_157.get_power(ts,8)
+	power_fe8 = ts_157.get_power(ts,8)
 	#log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
-	#log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
+	log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
 	try:
 		power_ngccm = ngccm.get_power(ts).values()[0]		# Take only the crate 1 results (there's only one crate, anyway).
 	except Exception as ex:
@@ -81,10 +108,11 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 	# Function should be updated to take in an argument that lets you decide which ones to monitor
 	# Do everything one crate at a time
 	for i, crate in enumerate(ts.fe_crates):
-		#log += log_registers_crate(ts, crate, scale)
+		log += log_registers_crate(ts, crate, scale)
 		log += log_igloo2_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
+		log += log_pulser_registers(ts, crate, scale)
 		if ts.name != "HEoven":
 			log += log_control_registers(ts, crate, ts.qie_slots[i], scale)
 
@@ -94,30 +122,31 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 
 # OZGUR: TO BE UPDATED
 def log_registers_crate(ts, crate, scale):
-	if scale == 0:  
-		cmds = [
-			"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
-			"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
-			"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
-			"get HE{0}-bkp_pwr_bad".format(crate),
-			"get fec1-qie_reset_cnt",
-			"get HE{0}-mezz_TMR_ERROR_COUNT".format(crate),
-			"get HE{0}-mezz_FPGA_MAJOR_VERSION".format(crate),
-			"get HE{0}-mezz_FPGA_MINOR_VERSION".format(crate),
-			"get fec1-firmware_dd",
-			"get fec1-firmware_mm",
-			"get fec1-firmware_yy",
-			"get fec1-sfp1_status.RxLOS",
-			]
+	  
+	cmds = [
+		"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
+		"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
+		"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
+		"get HE{0}-bkp_pwr_bad".format(crate),
+		"get fec1-qie_reset_cnt",
+		"get fec1-sfp1_status.RxLOS",
+		"get fec1-qie_reset_early",
+		"get fec1-qie_reset_ontime",
+		"get fec1-qie_reset_late",
+		]
 			
 		#for i in slots:
 	#		for j in ts.qiecards[crate,i]:
 #				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 #				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
-	elif scale == 1:
-		cmds = [] # needs updating
-	else:
-		cmds = []
+	if scale == 1:
+		cmds1 = [
+		"get fec1-fec_firmware_date",
+		"get HE{0}-mezz_TMR_ERROR_COUNT".format(crate),
+		"get HE{0}-mezz_FPGA_MAJOR_VERSION".format(crate),
+		"get HE{0}-mezz_FPGA_MINOR_VERSION".format(crate),
+		] # needs updating
+		cmds.extend(cmds1)
 
 	output = ngfec.send_commands(ts=ts, cmds=cmds)
 	log = ""
@@ -166,6 +195,10 @@ def log_qie_registers(ts, crate, slots, scale=0):
                 for j in ts.qiecards[crate,i]:
                         for k in xrange(ts.qies_per_card):
                                 log.append(log_qie_registers_per_qie(ts, crate, i, (j-1)*ts.qies_per_card+k+1))
+
+	# also log calibration unit QIE card
+	for k in xrange(ts.qies_per_card):
+		log.append(log_qie_registers_per_qie(ts, crate, "calib", k+1))
 
 	return "".join(log)
 
@@ -340,6 +373,29 @@ def log_control_registers(ts, crate, slots, scale=0):
 
 	return "".join(log)
 
+def log_pulser_registers(ts, crate, scale):
+	cmds1 = ["get HE{0}-pulser-ledA-enable".format(crate),
+		 "get HE{0}-pulser-ledA-amplitude_f".format(crate),
+		 "get HE{0}-pulser-ledA-delay_f".format(crate),
+		 "get HE{0}-pulser-ledA-bxdelay".format(crate),
+		 "get HE{0}-pulser-ledA-width_f".format(crate),
+		 "get HE{0}-pulser-ledB-enable".format(crate),
+		 "get HE{0}-pulser-ledB-amplitude_f".format(crate),
+		 "get HE{0}-pulser-ledB-delay_f".format(crate),
+		 "get HE{0}-pulser-ledB-bxdelay".format(crate),
+		 "get HE{0}-pulser-ledB-width_f".format(crate),
+		 ]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No pulser registers found"
+		return ""
+
+
 
 def list2f(List):
 	return ["{0:.2f}".format(i) for i in List]
@@ -401,66 +457,6 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
 ## -----------------------
 ## -- put back the setup
 ## -----------------------
-def HEsetup(ts):
-	log = []
-
-	# loop over the crates and slots
-	for icrate, crate in enumerate(ts.fe_crates):
-		for slot in ts.qie_slots[icrate]:
-			print "crate", crate, "slot", slot
-			cmds1 = ["put HE{0}-{1}-dac1-daccontrol_RefSelect 0".format(crate, slot),
-				 "put HE{0}-{1}-dac1-daccontrol_ChannelMonitorEnable 1".format(crate, slot), 
-				 "put HE{0}-{1}-dac1-daccontrol_InternalRefEnable 1".format(crate, slot),
-				 "put HE{0}-{1}-dac2-daccontrol_RefSelect 0".format(crate, slot),
-				 "put HE{0}-{1}-dac2-daccontrol_ChannelMonitorEnable 1".format(crate, slot), 
-				 "put HE{0}-{1}-dac2-daccontrol_InternalRefEnable 1".format(crate, slot),
-				 "put HE{0}-{1}-dac1-monchan 0x3f".format(crate, slot),
-				 "put HE{0}-{1}-dac2-monchan 0x3f".format(crate, slot),
-				 "put HE{0}-{1}-muxchannel 1".format(crate, slot)
-				 ]
-
-			cmds2 = ["put HE{0}-{1}-biasvoltage[1-48]_f 48*69.0".format(crate, slot)]
-
-			cmds3 = ["put HE{0}-{1}-peltier_stepseconds 900".format(crate, slot),
-				 "put HE{0}-{1}-peltier_targettemperature_f 22.0".format(crate, slot),
-				 "put HE{0}-{1}-peltier_adjustment_f 0.25".format(crate, slot),
-				 "put HE{0}-{1}-peltier_control 1".format(crate, slot),
-				 "put HE{0}-{1}-peltier_enable 1".format(crate, slot),
-				 "put HE{0}-{1}-SetPeltierVoltage_f 1.".format(crate, slot)
-				 ]
-
-			if ts.name != "HEoven":
-				output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
-				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-				output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
-				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-				output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
-				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-			
-			for qiecard in ts.qiecards[crate, slot]:
-				cmds4 = ["put HE{0}-{1}-{2}-i_scratch 0xab".format(crate, slot, qiecard),
-					 "put HE{0}-{1}-{2}-B_SCRATCH 0xab".format(crate, slot, qiecard)
-					 ]
-				output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
-				log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	print "".join(log)
-
-def HEreset(ts):
-	for crate in ts.fe_crates:
-		cmds1 = ["put HE{0}-bkp_reset 1".format(crate),
-			 "put HE{0}-bkp_reset 0".format(crate)]
-		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
-		for out in output:
-			print "{0} -> {1}".format(out["cmd"], out["result"])
-
-def HEtogglebkp_pwr(ts): 
-	for crate in ts.fe_crates:
-		cmds1 = ["put HE{0}-bkp_pwr_enable 0".format(crate),
-			 "wait",
-			 "put HE{0}-bkp_pwr_enable 1".format(crate)]
-		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
-		for out in output:
-			print "{0} -> {1}".format(out["cmd"], out["result"])
 
 def LEDon(ts):
 	for crate in ts.fe_crates:
@@ -469,12 +465,12 @@ def LEDon(ts):
 			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
 			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
-
+			 #"wait", 
 			 "put HE{0}-pulser-ledB-enable 0".format(crate),
 			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledB-width_f 5".format(crate),]
+			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
 		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
@@ -491,7 +487,7 @@ def LEDoff(ts):
 			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledB-width_f 5".format(crate),]
+			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
 		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
@@ -550,6 +546,26 @@ def record(ts=False, path="data/unsorted", scale=0):
 	with open("{0}/{1}.log".format(path, t_string), "w") as out:
 		out.write(log.strip())
 	return ("{0}/{1}.log".format(path, t_string), log, link_status)
+
+
+
+## ------------------------------
+##  -- For PRBS error checking --
+## ------------------------------
+def record_fast(ts=False, ts_status=False, path="data/unsorted"):
+	log = log_prbs(ts, ts_status)
+	if log != "":
+		t1 = time_string()
+		#log.insert(0, "%% TIMES\n{0}\n{1}\n\n".format(t0, t1)) # What was this supposed to do? it doesn't work...
+		t_string = time_string()[:-4]
+		path += "/{0}".format(t_string[:-7])
+		if not os.path.exists(path):
+			os.makedirs(path)
+		with open("{0}/{1}_prbs.log".format(path, t_string), "w") as out:
+			out.write(log.strip())
+			out.write("\n")
+
+
 # /FUNCTIONS
 
 # MAIN:
@@ -565,6 +581,11 @@ if __name__ == "__main__":
 		default="",
 		help="The name of the directory you want to output the logs to (default is \"ts_904\").",
 		metavar="STR"
+	)
+	parser.add_option("-p", "--prbs", dest="prbs",
+		default=1,
+		help="The logging period for prbs errors in seconds (default is 1).",
+		metavar="FLOAT"
 	)
 	parser.add_option("-s", "--sparse", dest="spar",
 		default=1,
@@ -592,7 +613,8 @@ if __name__ == "__main__":
 	else:
 		path = "data/" + options.out
 	period_long = float(options.full)
-	
+	period_fast = float(options.prbs)
+
 	# Set up teststand:
 	ts = teststand(name)
 	# Get a status object
@@ -606,23 +628,47 @@ if __name__ == "__main__":
 	# Logging loop:
 	z = True
 	t0 = 0
-	t0_long = time()
+	t0_fast = 0
+	t0_long = 0
 	nfailed_tries = 0
 	while z == True:
 		dt = time() - t0
 		dt_long = time() - t0_long
+		dt_fast = time() - t0_fast
 		try:
 			if (period_long!=0) and (dt_long > period_long*60):
 				t0_long = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 				# also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 1)
-			if (period!=0) and (dt > period*60):
+				# take an LED run
+				print "Taking LED run"
+				LEDon(ts)
+				uhtr.get_histos(ts,
+                                                n_orbits=100000,
+                                                sepCapID=0,
+                                                file_out_base="{0}/histo_{1}".format("data/LEDruns", time_string()[:-4]),
+                                                script = False)
+				LEDoff(ts)
+				print "End LED run"
+			elif (period!=0) and (dt > period*60):
 				t0 = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=0)
 				# also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 0)
-			if strftime("%H:%M") == options.ptime:
+				# take a histogram run
+				print "Take histo run"
+				uhtr.get_histos(ts,
+						n_orbits=100000,
+						sepCapID=0,
+						file_out_base="{0}/histo_{1}".format("data/long_histos", time_string()[:-4]),
+						script = False)           
+				print "End histo run"                                
+			elif (period_fast!=0) and (dt_fast > period_fast):
+				t0_fast = time()
+				record_fast(ts=ts, ts_status = ts_status, path=path)
+	
+			elif strftime("%H:%M") == options.ptime:
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 			        # also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 1)

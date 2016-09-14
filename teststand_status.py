@@ -30,7 +30,17 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
             self.maxADC = 10
             self.maxAveADC = 10
 
-
+class ControlRegisters:
+    def __init__(self, tstype="HEcharm"):
+        self.fec_rx_prbs_error_cnt = 0
+        self.mezz_rx_prbs_error_cnt = 0
+        self.b2b_rx_prbs_error_cnt = 0
+        self.sb2b_rx_prbs_error_cnt = 0
+        self.SinErr_cnt = 0
+        self.DbErr_cnt = 0
+        self.fec_rxlos_cnt = 0
+        self.fec_dv_down_cnt = 0
+    
 class QIERegisters:
     """A class to hold the expected QIE registers, and to store the current state of the ones we expect to change."""
 
@@ -120,7 +130,7 @@ class IglooRegisters:
         self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
         self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
         
-
+        
 class BridgeRegisters:
     """A class to hold the expected bridge registers, 
 and to store the current state of the ones we expect to change."""
@@ -200,6 +210,11 @@ that are expected to change"""
         
         # Store the links, for now one object, so assumes same orbitdelay
         self.links = LinkParameters(self.tstype)
+
+        # Store the control registers
+        self.control = {}
+        for crate in ts.fe_crates:
+            self.control[crate] = ControlRegisters(self.tstype)
 
         # Store the QIE information, put them in a list per crate, slot combo
         self.qies = {}
