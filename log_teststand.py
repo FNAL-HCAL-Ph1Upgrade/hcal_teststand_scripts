@@ -577,8 +577,8 @@ def record_fast(ts=False, ts_status=False, path="data/unsorted"):
 	log = log_prbs(ts, ts_status)
 	if log != "":
 		t1 = time_string()
-		log = "%% TIME\n{0}\n{1}\n".format(t0, t1) + log 
-		t_string = time_string()[:-4]
+		log = "%% TIME\n{1}\n".format(t1) + log 
+		t_string = t1[:-4]
 		path += "/{0}".format(t_string[:-7])
 		if not os.path.exists(path):
 			os.makedirs(path)
