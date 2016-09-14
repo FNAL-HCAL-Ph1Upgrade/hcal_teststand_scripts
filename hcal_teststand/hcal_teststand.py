@@ -295,7 +295,7 @@ class teststand:
 		for i, crate in enumerate(self.fe_crates):
 			temp_info = get_temp(self, crate, i)
 			temps.append([temp_info["temp"],
-				      temp_info["tempS"],
+				      #temp_info["tempS"],
 				      ])		# See the "get_temp" funtion above.
 		return temps
 	
@@ -431,24 +431,24 @@ def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be 
 	commands = []
 	for slot in ts.qie_slots[icrate]:
 		commands.append("get HE{0}-{1}-temperature_f".format(crate,slot))
-		commands.append("get HE{0}-{1}-temperatureS_f".format(crate,slot))
+		#commands.append("get HE{0}-{1}-temperatureS_f".format(crate,slot))
 		#commands.append("get HE{0}-{1}-humidityS_f".format(crate,slot))
 		#commands.append("wait")
 	raw_output = ngfec.send_commands(ts=ts, cmds=commands, script=True)
 
 	temp = []
-	tempS = []
+	#tempS = []
 	#humS = []
 	log = []
 	for i,slot in enumerate(ts.qie_slots[icrate]):
 		temp.append("")
-		tempS.append("")
+		#tempS.append("")
 		#humS.append("")
 		log.append("")
 		try:
 			#match = search("get HE{0}-{1}-temperature_f # ([\d\.]+)".format(crate, slot), raw_output)
 			temp[i] = float(raw_output[0+3*i]["result"])
-			tempS[i] = float(raw_output[1+3*i]["result"])
+			#tempS[i] = float(raw_output[1+3*i]["result"])
 			#humS[i] = float(raw_output[2+3*i]["result"])
 		except Exception as ex:
 			log[i] += 'Trying to find the temperature of Crate {0} with "{1}" resulted in: {2}\n'.format(crate, commands[i], ex)
@@ -458,7 +458,7 @@ def get_temp(ts, crate, icrate):		# It's more flexible to not have the input be 
 
 	return {
 		"temp":	temp,
-		"tempS": tempS,
+		#"tempS": tempS,
 		#"humS":	humS,
 		"log":	log,
 		}
