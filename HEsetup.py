@@ -5,7 +5,7 @@ import hcal_teststand.uhtr as uhtr
 import hcal_teststand.ngfec as ngfec
 
 def HEsetup(ts, section="all"):
-    log = []
+        log = []
 
 	# loop over the crates and slots
 	for icrate, crate in enumerate(ts.fe_crates):
@@ -49,11 +49,22 @@ def HEsetup(ts, section="all"):
                                 if section == "all" or section == "scratch":
                                     output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
                                     log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+				    
+		# for ngccm, write scratch
+		cmds5 = ["put HE{0}-mezz_scratch 0xf 0xf 0xf 0xf".format(crate)]
+		if section == "all" or section == "scratch":
+			output = ngfec.send_commands(ts=ts, cmds=cmds5)
+			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
 	print "".join(log)
 
 def HEreset(ts):
 	for crate in ts.fe_crates:
 		cmds1 = ["put HE{0}-bkp_reset 1".format(crate),
+			 "wait",
+			 "wait",
+			 "wait",
+			 "wait",
 			 "put HE{0}-bkp_reset 0".format(crate)]
 		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
 		for out in output:
@@ -62,6 +73,9 @@ def HEreset(ts):
 def HEtogglebkp_pwr(ts): 
 	for crate in ts.fe_crates:
 		cmds1 = ["put HE{0}-bkp_pwr_enable 0".format(crate),
+			 "wait",
+			 "wait",
+			 "wait",
 			 "wait",
 			 "put HE{0}-bkp_pwr_enable 1".format(crate)]
 		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
@@ -129,7 +143,7 @@ if __name__ == "__main__":
         HEtogglebkp_pwr(ts)
 
     if reset:
-        log_teststand.HEreset(ts)
+        HEreset(ts)
 
     if link and tstype != "HEoven":
         # initialize the links
