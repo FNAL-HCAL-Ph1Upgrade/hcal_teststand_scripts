@@ -19,9 +19,9 @@ def get_power(ts, num=6):
 		"time": time(),
 	}
 
-def enable_power(enable=0):
+def enable_power(num=8, enable=0):
 	try:
-		p = pexpect.spawn('/home/daq/gpib/kam/backup/lowVoltage_output {0}'.format(enable))		# Run script.
+		p = pexpect.spawn('/home/daq/gpib/kam/outputToggle {0} {1}'.format(num, enable))		# Run script.
 		p.expect(pexpect.EOF)		# Wait for the script to finish.
 		raw_output = p.before.strip()		# Collect all of the script's output.
 	except Exception as ex:
@@ -31,7 +31,7 @@ def enable_power(enable=0):
 
 def config_power():
 	try:
-		p = pexpect.spawn('/home/daq/gpib/kam/backup/lowVoltage_config')		# Run script.
+		p = pexpect.spawn('/home/daq/gpib/kam/lowVoltage_config')		# Run script.
 		p.expect(pexpect.EOF)		# Wait for the script to finish.
 		raw_output = p.before.strip()		# Collect all of the script's output.
 	except Exception as ex:
