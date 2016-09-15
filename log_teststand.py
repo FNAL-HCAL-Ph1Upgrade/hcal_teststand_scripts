@@ -267,6 +267,7 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 		cmds = ["get HE{0}-{1}-Qie41_ck_ph".format(crate, i)]
 		if scale == 1:
 			for j in ts.qiecards[crate,i]:
+				cmds.append("wait")
                                 cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
 		output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
@@ -459,16 +460,16 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
 ## -- put back the setup
 ## -----------------------
 
-def LEDon(ts):
+def LEDon(ts, amplitude = "1.0", enableB = False):
 	for crate in ts.fe_crates:
 		cmds1 = ["put HE{0}-pulser-ledA-enable 1".format(crate),
-			 "put HE{0}-pulser-ledA-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
 			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
 			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
 			 #"wait", 
-			 "put HE{0}-pulser-ledB-enable 0".format(crate),
-			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-enable {1}".format(crate, "1" if enableB else "0"),
+			 "put HE{0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
 			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
 			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
@@ -476,16 +477,16 @@ def LEDon(ts):
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
-def LEDoff(ts):
+def LEDoff(ts, amplitude = "1.0"):
 	for crate in ts.fe_crates:
 		cmds1 = ["put HE{0}-pulser-ledA-enable 0".format(crate),
-			 "put HE{0}-pulser-ledA-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
 			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
 			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
 
 			 "put HE{0}-pulser-ledB-enable 0".format(crate),
-			 "put HE{0}-pulser-ledB-amplitude_f 1.0".format(crate),
+			 "put HE{0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
 			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
 			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
@@ -508,10 +509,19 @@ def BVscan(ts, biasVoltages):
 	
 		sleep(2)
 		uhtr.get_histos(ts,
-				n_orbits=100000,
+				n_orbits=50000,
 				sepCapID=0,
 				file_out_base="{0}/histo_BV{2}_{1}".format("data/BVScan", current_time, str(bv).replace(".", "p")),
 				script = False)
+		LEDon(ts, "0.3", True)
+		uhtr.get_histos(ts,
+				n_orbits=50000,
+				sepCapID=0,
+				file_out_base="{0}/histo_BV{2}_LED_{1}".format("data/BVScan", current_time, str(bv).replace(".", "p")),
+				script = False)
+		
+		LEDoff(ts)
+
 
 	#Return BV to default value 
 	HEsetup.HEsetup(ts, "bias")
@@ -669,7 +679,7 @@ if __name__ == "__main__":
 			if (period_bias!=0) and (dt_bias > period_bias*60*60):
 				t0_bias = time()
 				# do BV scan
-				BVscan(ts, [60., 65., 66., 67., 68., 69., 70.])
+				BVscan(ts, [65., 65.5, 66., 66.5, 67., 67.5, 68., 68.5, 69., 69.5, 70., 70.5, 71.])
 				print "End BV scan"
 			if (period_long!=0) and (dt_long > period_long*60):
 				t0_long = time()

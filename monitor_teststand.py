@@ -474,7 +474,7 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 						getattr(bridge_register, "update_{0}".format(reg))(log_reg_i)
 					else:
 						result = False
-						scale = 1
+						scale = 0
 						error.append("Bridge error: Counter did not go up: get HE{0}-{1}-{2}-B_{3} returned {4} again.".format(crate, slot, qiecard, reg, log_reg))
 				else:
 					exp_reg = getattr(bridge_register, reg)
@@ -751,7 +751,7 @@ def printNiceLinkInfo(info):
 #    - if humidity > 65%'
 
 
-def handleErrors(ts, scale):
+def handleErrors(ts, ts_status, scale):
 	log = "The maximum error scale that was encountered was %s.\n" % (scale)
 	if scale == 4:
 		# turn off power supply
@@ -780,6 +780,9 @@ def handleErrors(ts, scale):
 			HEsetup.HEreset(ts)
 			log += "Setting up the system again. We should be back in business.\n"
 			HEsetup.HEsetup(ts)
+			uhtr.initLinks(ts, OrbitDelay=ts_status.links.OrbitDelay, Auto_Realign=ts_status.links.Auto_Realign, 
+				       OnTheFlyAlignment=ts_status.links.OnTheFlyAlignment, CDRreset=ts_status.links.CDRreset, 
+				       GTXreset=ts_status.links.GTXreset, verbose=True)
 		else:
 			print "I'm sending a mail... No need to do anything else... "
 	else:
@@ -898,7 +901,7 @@ Thanks!!
 				error_scales = [c.scale for c in critical]
 				max_error_scale = max(error_scales)
 
-				handle_log = handleErrors(ts, max_error_scale)
+				handle_log = handleErrors(ts, ts_status, max_error_scale)
 				email_body += handle_log
 				error_log += handle_log
 
