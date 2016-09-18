@@ -4,26 +4,26 @@ from hcal_teststand.utilities import time_string
 from time import sleep
 import sys
 
-def main():
+def main(ts):
     t = time_string()[:-4]
-
-    ts = hc.teststand("HEcharm")
-
     histo_output = uhtr.get_histos(ts,
-                                   n_orbits=5000000,
+                                   n_orbits=10000,
                                    sepCapID=0,
-                                   file_out_base="{0}/histo_{1}".format("data/long_histos", t),
+                                   file_out_base="{0}/histo_{1}".format("data/long_histos/CuTest", t),
                                    script = False)                                           
 
 
 if __name__ == "__main__":
     try:
 
-        while True:
-            print "Starting histo run at", time_string()[:-4]
-            main()
-            print "Finished histo run at", time_string()[:-4]
-            sleep(60*30)
+        ts = hc.teststand("HEcharm")
+
+        #while True:
+        for i in range(60):
+            #print "Starting histo run at", time_string()[:-4]
+            main(ts)
+            #print "Finished histo run at", time_string()[:-4]
+            #sleep(60*30)
 
     except KeyboardInterrupt:
         print "Bye!"
