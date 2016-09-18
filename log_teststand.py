@@ -1,4 +1,4 @@
-####################################################################
+###################################################################
 # Type: SCRIPT                                                     #
 #                                                                  #
 # Description: This script logs all BRIDGE, IGLOO2, and nGCCM      #
@@ -260,6 +260,61 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
 		print "No igloo registers found"
 		return ""
 
+def log_igloo2_registers_calib(ts, crate, scale):
+	# Providing all commands at the same time seems to result in timeout
+	# Until better solution is available, I will pass the commands in smaller groups
+
+	cmds1 = ["get HE{0}-calib-i_FPGA_MINOR_VERSION".format(crate),
+		 "get HE{0}-calib-i_FPGA_MAJOR_VERSION".format(crate),
+		 "get HE{0}-calib-i_ZerosRegister".format(crate),
+		 "get HE{0}-calib-i_OnesRegister".format(crate),
+		 "get HE{0}-calib-i_FPGA_TopOrBottom".format(crate)
+		 ]
+	cmds2 = ["get HE{0}-calib-i_StatusReg_InputSpyFifoEmpty".format(crate),
+		 "get HE{0}-calib-i_StatusReg_InputSpyFifoFull".format(crate),
+		 "get HE{0}-calib-i_StatusReg_InputSpyWordNum".format(crate), 
+		 "get HE{0}-calib-i_StatusReg_PLL320MHzLock".format(crate),
+		 "get HE{0}-calib-i_StatusReg_QieDLLNoLock".format(crate),
+		 "get HE{0}-calib-i_StatusReg_zero".format(crate)
+		 ]
+	cmds3 = ["get HE{0}-calib-i_WTE_count".format(crate),
+		 "get HE{0}-calib-i_Clk_count".format(crate),
+		 "get HE{0}-calib-i_RST_QIE_count".format(crate),
+		 "get HE{0}-calib-i_scratch".format(crate)
+		 ]
+	cmds4 = ["get HE{0}-calib-i_CapIdErrLink1_count".format(crate),
+		 "get HE{0}-calib-i_CapIdErrLink2_count".format(crate), 
+		 "get HE{0}-calib-i_CapIdErrLink3_count".format(crate)
+		 ]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+
+	if scale == 1:
+		cmds_extra = ["get HE{0}-calib-i_CntrReg_WrEn_InputSpy".format(crate),
+			      "get HE{0}-calib-i_CntrReg_OrbHistoRun".format(crate),
+			      "get HE{0}-calib-i_CntrReg_CImode".format(crate),
+			      "get HE{0}-calib-i_CntrReg_InternalQIER".format(crate),  
+			      "get HE{0}-calib-i_CntrReg_OrbHistoClear".format(crate),      
+			      "get HE{0}-calib-i_StatusReg_BRIDGE_SPARE".format(crate),
+			      ]
+
+		output = ngfec.send_commands(ts=ts, cmds=cmds_extra, script=True)
+		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No igloo registers on CU found"
+		return ""
+
 def log_igloo2_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
@@ -274,6 +329,11 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 		# Other igloo stuff
 		for j in ts.qiecards[crate,i]:
 			log.append(log_igloo2_registers_per_card(ts, crate, i, j, scale))
+
+	cmds = ["get HE{0}-calib-Qie{1}_ck_ph".format(crate, nqie+1) for nqie in xrange(ts.qies_per_card)]
+	output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
+	log.append(log_igloo2_registers_calib(ts, crate, scale))
 
 	return "".join(log)
 
@@ -310,12 +370,46 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 		print "No bridge registers found"
 		return ""
 
+def log_bridge_registers_calib(ts, crate, scale):
+	# Providing all commands at the same time seems to result in timeout
+	# Until better solution is available, I will pass the commands in smaller groups
+
+	cmds1 = ["get HE{0}-calib-B_FIRMVERSION_MAJOR".format(crate),
+		 "get HE{0}-calib-B_FIRMVERSION_MINOR".format(crate),
+		 "get HE{0}-calib-B_FIRMVERSION_SVN".format(crate),
+		 "get HE{0}-calib-B_ZEROES".format(crate),
+		 "get HE{0}-calib-B_ONES".format(crate),
+		 "get HE{0}-calib-B_ONESZEROES".format(crate)
+		 ]
+	cmds2 = ["get HE{0}-calib-B_WTECOUNTER".format(crate),
+		 "get HE{0}-calib-B_CLOCKCOUNTER".format(crate),
+		 "get HE{0}-calib-B_RESQIECOUNTER".format(crate),
+		 "get HE{0}-calib-B_SCRATCH".format(crate)
+		 ]
+	cmds3 = ["get HE{0}-calib-B_SHT_temp_f".format(crate),
+		 "get HE{0}-calib-B_SHT_rh_f".format(crate)]
+
+	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
+	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
+	if len(log) > 0:
+		return "".join(log)
+	else:
+		print "No bridge registers on CU found"
+		return ""
+
 
 def log_bridge_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
 		for j in ts.qiecards[crate,i]:
 			log.append(log_bridge_registers_per_card(ts, crate, i, j, scale))
+
+	log.append(log_bridge_registers_calib(ts, crate, scale))
 
 	return "".join(log)
 
@@ -342,9 +436,9 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 	if ts.name == "HEcharm":
 		#for j in [1,15,39]:
 	        #	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
-		for j in [1,15,39]:
-			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
-			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
+		#for j in [1,15,39]:
+		cmds4.append("get HE{0}-{1}-biasmon[1-48]_f".format(crate, slot))
+		cmds4.append("get HE{0}-{1}-LeakageCurrent[1-48]_f".format(crate, slot))
 	if ts.name == "HEfnal":
 		#for j in xrange(1,49):
 		#	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
@@ -513,6 +607,11 @@ def BVscan(ts, biasVoltages):
 				sepCapID=0,
 				file_out_base="{0}/histo_BV{2}_{1}".format("data/BVScan", current_time, str(bv).replace(".", "p")),
 				script = False)
+		uhtr.get_histos(ts,
+				n_orbits=50000,
+				sepCapID=1,
+				file_out_base="{0}/histo_BV{2}_perCID_{1}".format("data/BVScan", current_time, str(bv).replace(".", "p")),
+				script = False)
 		LEDon(ts, "0.3", True)
 		uhtr.get_histos(ts,
 				n_orbits=50000,
@@ -679,7 +778,7 @@ if __name__ == "__main__":
 			if (period_bias!=0) and (dt_bias > period_bias*60*60):
 				t0_bias = time()
 				# do BV scan
-				BVscan(ts, [65., 65.5, 66., 66.5, 67., 67.5, 68., 68.5, 69., 69.5, 70., 70.5, 71.])
+				BVscan(ts, [60., 65., 65.5, 66., 66.5, 67., 67.5, 68., 68.5, 69., 69.5, 70., 70.5, 71.])
 				print "End BV scan"
 			if (period_long!=0) and (dt_long > period_long*60):
 				t0_long = time()
@@ -689,7 +788,7 @@ if __name__ == "__main__":
 				# take an LED run
 ####JOE TEMP FINDE ME!!!
 				print "Taking LED run"
-				LEDon(ts)
+				LEDon(ts, amplitude = "1.0", enableB = True)
 				uhtr.get_histos(ts,
                                                 n_orbits=100000,
                                                 sepCapID=0,

@@ -194,9 +194,9 @@ class ControlCardRegisters:
             for i in xrange(1,49):
                 setattr(self, "biasmon{0}_f".format(i), 70.0)
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
-        if tstype == "HEcharm":
-            for i in [1,15,39]:
-                setattr(self, "biasmon{0}_f".format(i), 69.0)
+        #if tstype == "HEcharm":
+            #for i in [1,15,39]:
+                #setattr(self, "biasmon{0}_f".format(i), 69.0)
                 #setattr(self, "LeakageCurrent{0}_f".format(i), )
 
 
@@ -229,6 +229,8 @@ that are expected to change"""
         # Store the QIE information, put them in a list per crate, slot combo
         self.qies = {}
         for icrate, crate in enumerate(ts.fe_crates):
+            for qie in xrange(ts.qies_per_card):
+                self.qies[crate,"calib",qie+1] = QIERegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate,slot]:
                     for qie in xrange(ts.qies_per_card):
@@ -237,6 +239,8 @@ that are expected to change"""
         # Store the igloo information
         self.igloos = {}
         for icrate, crate in enumerate(ts.fe_crates):
+            self.igloos[crate, "calib", 1] = IglooRegisters(1, ts.qies_per_card, self.tstype)
+
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate,slot]:
                     self.igloos[crate, slot, qiecard] = IglooRegisters(qiecard, ts.qies_per_card, self.tstype)
@@ -244,6 +248,7 @@ that are expected to change"""
         # Store the bridge information
         self.bridges = {}
         for icrate, crate in enumerate(ts.fe_crates):
+            self.bridges[crate, "calib", 1] = BridgeRegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate,slot]:
                     self.bridges[crate, slot, qiecard] = BridgeRegisters(self.tstype)
