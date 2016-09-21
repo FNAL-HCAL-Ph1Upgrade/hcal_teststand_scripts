@@ -297,7 +297,31 @@ def get_power(ts=False):
 				"get HE{0}-VIN_current_J14_Cntrl_f".format(crate),
 				"get HE{0}-VIN_current_J15_Cntrl_f".format(crate),
 				"get HE{0}-VIN_current_J16_Clk_f".format(crate),
-			]
+
+				"get HE{0}-3V3_bkp_J13_Clk_f".format(crate),
+				"get HE{0}-3V3_bkp_J14_Cntrl_f".format(crate),
+				"get HE{0}-3V3_bkp_J15_Cntrl_f".format(crate),
+				"get HE{0}-3V3_bkp_J16_Clk_f".format(crate),
+				"get HE{0}-3V3_current_J13_Clk_f".format(crate),
+				"get HE{0}-3V3_current_J16_Clk_f".format(crate),
+				
+				"get HE{0}-3V3_voltage_J13_Clk_f".format(crate),
+				"get HE{0}-3V3_voltage_J14_Cntrl_f".format(crate),
+				"get HE{0}-3V3_voltage_J15_Cntrl_f".format(crate),
+				"get HE{0}-3V3_voltage_J16_Clk_f".format(crate),
+				
+				"get HE{0}-2V5_current_J13_Clk_f".format(crate),
+				"get HE{0}-2V5_current_J16_Clk_f".format(crate),
+				"get HE{0}-2V5_voltage_J13_Clk_f".format(crate),
+				"get HE{0}-2V5_voltage_J14_Cntrl_f".format(crate),
+				"get HE{0}-2V5_voltage_J15_Cntrl_f".format(crate),
+				"get HE{0}-2V5_voltage_J16_Clk_f".format(crate),
+				
+				"get HE{0}-1V2_current_J14_Cntrl_f".format(crate),
+				"get HE{0}-1V2_current_J15_Cntrl_f".format(crate),
+				"get HE{0}-1V2_voltage_J14_Cntrl_f".format(crate),
+				"get HE{0}-1V2_voltage_J15_Cntrl_f".format(crate),
+				]
 			output[crate] = ngfec.send_commands(ts=ts, cmds=cmds)
 		return output
 	else:
