@@ -56,6 +56,13 @@ def HEsetup(ts, section="all"):
 			output = ngfec.send_commands(ts=ts, cmds=cmds5)
 			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
+		# for CU, write scratch
+		cmds6 = ["put HE{0}-calib-i_scratch 0xab".format(crate),
+			 "put HE{0}-calib-B_SCRATCH 0xab".format(crate)]
+		if section == "all" or section == "scratch":
+			output = ngfec.send_commands(ts=ts, cmds=cmds6)
+			log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
+
 	print "".join(log)
 
 def HEreset(ts):
