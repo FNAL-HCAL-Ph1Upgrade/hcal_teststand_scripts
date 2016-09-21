@@ -487,9 +487,9 @@ def check_bridge_registers(ts, bridge_status, log_parsed):
 						# probably SEU, so no need for an email ;-)
 						error.append("Bridge SEU candidate: get HE{0}-{1}-{2}-B_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
 						# write back the scratch register if necesary
-						if "SCRATCH" in reg and slot != "calib":
+						if "SCRATCH" in reg:
 							output = ngfec.send_commands(ts=ts, 
-										     cmds=["put HE{0}-{1}-{2}-B_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
+										     cmds=["put HE{0}-calib-B_{1} {2}".format(crate, reg, hex(exp_reg)) if slot == "calib" else "put HE{0}-{1}-{2}-B_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
 										     script=True)
 							error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
 
@@ -555,9 +555,9 @@ def check_igloo_registers(ts, igloo_status, log_parsed, logging_scale):
 						# probably SEU
 						error.append("Igloo SEU candidate: get HE{0}-{1}-{2}-i_{3} returned {4}, we expected {5}".format(crate, slot, qiecard, reg, log_reg, exp_reg))
 						# write back the scratch register if necesary
-						if "scratch" in reg and slot != "calib":
+						if "scratch" in reg:
 							output = ngfec.send_commands(ts=ts, 
-										     cmds=["put HE{0}-{1}-{2}-i_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
+										     cmds=["put HE{0}-calib-i_{1} {2}".format(crate, reg, hex(exp_reg)) if slot == "calib" else "put HE{0}-{1}-{2}-i_{3} {4}".format(crate, slot, qiecard, reg, hex(exp_reg))], 
 										     script=True)
 							error.append("Wrote back scratch register: {0} -> {1}\n".format(output[0]["cmd"], output[0]["result"]))
 
@@ -655,7 +655,7 @@ def check_cntrl_link(log_parsed):
 ## ----------------------
 
 def send_email(subject="", body=""):
-	msg = MIMEText(body)
+	msg = MIMEText("Current time is: " + time_string()[:-4] + "\n" + body)
 	msg['Subject'] = subject
 	msg['From'] = "alerts@teststand.hcal"
 	msg['To'] = ""
@@ -851,7 +851,7 @@ Thanks!!
                                                                                            control_hub=ts.control_hub)[uhtr_.crate,uhtr_.slot])
 				link_error_info = printNiceLinkInfo(statData)
                                 send_email(subject="HE teststand ({0}): links reinitialized!".format(ts.name), 
-					   body="Link status was: \n{0}\n\n\nLink status after reinitialization is\n{1}".format(link_error_info, raw_status[1]))
+					   body="Corresonding log is {0}. \nLink status was: \n{1}\n\n\nLink status after reinitialization is\n{2}".format(logpath, link_error_info, raw_status[1]))
                                 # TODO: add while loop to initialize extra times if necessary
                         elif problemType == 2:
                                 print "I'm waiting to see if the problem persists. Nothing catastrophic going on for now"
