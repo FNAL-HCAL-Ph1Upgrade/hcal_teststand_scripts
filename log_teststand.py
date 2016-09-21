@@ -134,6 +134,7 @@ def log_registers_crate(ts, crate, scale):
 		"get fec1-qie_reset_early_cnt",
 		"get fec1-qie_reset_ontime_cnt",
 		"get fec1-qie_reset_late_cnt",
+		"get HE{0}-fec_bkp_pwr_flip_cnt".format(crate)
 		]
 			
 		#for i in slots:
@@ -509,8 +510,8 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
         link_status_parsed = []
         for (uhtr_, rawStatus) in link_status:
                 statusDict, statusString = uhtr.parseLinkStatus(rawStatus)
-                if scale == 1:
-                        log += "{0}\n".format(statusString)
+                #if scale == 1:
+		log += "{0}\n".format(statusString)
                 link_status_parsed.append((uhtr_, statusDict))
 
         # Now also grab some spy data
