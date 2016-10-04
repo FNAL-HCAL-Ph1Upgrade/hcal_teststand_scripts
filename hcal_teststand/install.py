@@ -89,9 +89,9 @@ def parse_config_var(raw=None, var_type="s"):
                                         for m in sublists:
                                                 if m:
                                                         if "s" in var_type:
-                                                                subresult.append([str(i).strip() for i in l.split(",")])
+                                                                subresult.append([str(i).strip() for i in m.split(",")])
                                                         elif "i" in var_type:
-                                                                subresult.append([int(i) for i in l.split(",")])
+                                                                subresult.append([int(i) for i in m.split(",")])
                                                 else:
                                                         subresult.append([])
                                         result.append(subresult)
