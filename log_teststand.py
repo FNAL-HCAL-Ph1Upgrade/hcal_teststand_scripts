@@ -6,10 +6,12 @@
 # to run continuously, logging at a user set period.               #
 ####################################################################
 
-from hcal_teststand import *
+#from hcal_teststand import *
+from hcal_teststand.simpleTestStand import teststand
 import hcal_teststand.uhtr as uhtr
-from hcal_teststand.hcal_teststand import teststand
-from hcal_teststand.utilities import *
+import hcal_teststand.ngfec as ngfec
+#from hcal_teststand.hcal_teststand import teststand
+#from hcal_teststand.utilities import *
 import sys
 import os
 from optparse import OptionParser
@@ -20,6 +22,7 @@ import monitor_teststand, HEsetup
 from teststand_status import TestStandStatus
 
 # CLASSES:
+
 # /CLASSES
 
 # FUNCTIONS:
@@ -46,14 +49,14 @@ def log_prbs(ts, ts_status):
 
 	for crate in ts.fe_crates:
 		cmds = [
-			"get HE{0}-fec_rx_prbs_error_cnt".format(crate),
-			"get HE{0}-mezz_rx_prbs_error_cnt".format(crate),
-			"get HE{0}-b2b_rx_prbs_error_cnt".format(crate),		
-			"get HE{0}-sb2b_rx_prbs_error_cnt".format(crate),
-			"get fec{0}-SinErr_cnt".format(crate),
-			"get fec{0}-DbErr_cnt".format(crate),
-			"get HE{0}-fec_rxlos_cnt".format(crate),
-			"get HE{0}-fec_dv_down_cnt".format(crate),
+			"get {0}-fec_rx_prbs_error_cnt".format(crate),
+			"get {0}-mezz_rx_prbs_error_cnt".format(crate),
+			"get {0}-b2b_rx_prbs_error_cnt".format(crate),		
+			"get {0}-sb2b_rx_prbs_error_cnt".format(crate),
+			"get fec1-SinErr_cnt".format(crate),
+			"get fec1-DbErr_cnt".format(crate),
+			"get {0}-fec_rxlos_cnt".format(crate),
+			"get {0}-fec_dv_down_cnt".format(crate),
 			]
 		output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
 		for result in output:
@@ -100,7 +103,7 @@ def log_power(ts):
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
 
-def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers, 1 is full.
+def log_registers(ts, scale=0):		# Scale 0 is the sparse set of registers, 1 is full.
 	log = ""
 	log += "%% REGISTERS\n"
 
@@ -113,8 +116,6 @@ def log_registers(ts=False, scale=0):		# Scale 0 is the sparse set of registers,
 		log += log_bridge_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_qie_registers(ts, crate, ts.qie_slots[i], scale)
 		log += log_pulser_registers(ts, crate, scale)
-		if ts.name != "HEoven":
-			log += log_control_registers(ts, crate, ts.qie_slots[i], scale)
 
 	return log
 
@@ -125,32 +126,32 @@ def log_registers_crate(ts, crate, scale):
 	  
 	cmds = [
 		"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
-		#"get HE{0}-mezz_ONES".format(crate),		# Check that this is all 1s.
-		#"get HE{0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
-		"get HE{0}-bkp_pwr_bad".format(crate),
-		"get HE{0}-mezz_scratch".format(crate),
+		#"get {0}-mezz_ONES".format(crate),		# Check that this is all 1s.
+		#"get {0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
+		"get {0}-bkp_pwr_bad".format(crate),
+		"get {0}-mezz_scratch".format(crate),
 		"get fec1-qie_reset_cnt",
 		"get fec1-sfp1_status.RxLOS",
 		"get fec1-qie_reset_early_cnt",
 		"get fec1-qie_reset_ontime_cnt",
 		"get fec1-qie_reset_late_cnt",
-		"get HE{0}-fec_bkp_pwr_flip_cnt".format(crate)
+		"get {0}-fec_bkp_pwr_flip_cnt".format(crate)
 		]
-			
+
 		#for i in slots:
 	#		for j in ts.qiecards[crate,i]:
-#				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
-#				cmds.append("get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+#				cmds.append("get {0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
+#				cmds.append("get {0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 	if scale == 1:
 		cmds1 = [
 		"get fec1-fec_firmware_date",
-		"get HE{0}-mezz_TMR_ERROR_COUNT".format(crate),
-		"get HE{0}-mezz_FPGA_MAJOR_VERSION".format(crate),
-		"get HE{0}-mezz_FPGA_MINOR_VERSION".format(crate),
+		"get {0}-mezz_TMR_ERROR_COUNT".format(crate),
+		"get {0}-mezz_FPGA_MAJOR_VERSION".format(crate),
+		"get {0}-mezz_FPGA_MINOR_VERSION".format(crate),
 		] # needs updating
 		cmds.extend(cmds1)
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds)
 	log = ""
 
 	for result in output:
@@ -161,27 +162,27 @@ def log_registers_crate(ts, crate, scale):
 def log_qie_registers_per_qie(ts, crate, slot, nqie):
 	# We can log all registers every time since the QIEs only contain one big register
 	cmds = [ 
-		"get HE{0}-{1}-QIE{2}_CapID0pedestal".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_CapID1pedestal".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_CapID2pedestal".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_CapID3pedestal".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_DiscOn".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_Idcset".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_RangeSet".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_TimingIref".format(crate,slot,nqie), 
-		"get HE{0}-{1}-QIE{2}_ChargeInjectDAC".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_FixRange".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_Lvds".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_TDCmode".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_TimingThresholdDAC".format(crate,slot,nqie),  
-		"get HE{0}-{1}-QIE{2}_CkOutEn".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_Gsel".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_PedestalDAC".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_TGain".format(crate,slot,nqie),
-		"get HE{0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
+		"get {0}-{1}-QIE{2}_CapID0pedestal".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_CapID1pedestal".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_CapID2pedestal".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_CapID3pedestal".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_DiscOn".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_Idcset".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_RangeSet".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_TimingIref".format(crate,slot,nqie), 
+		"get {0}-{1}-QIE{2}_ChargeInjectDAC".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_FixRange".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_Lvds".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_TDCmode".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_TimingThresholdDAC".format(crate,slot,nqie),  
+		"get {0}-{1}-QIE{2}_CkOutEn".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_Gsel".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_PedestalDAC".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_TGain".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
 		]
 	
-	output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
 	log = ""
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
@@ -206,53 +207,53 @@ def log_qie_registers(ts, crate, slots, scale=0):
 
 
 
-def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
+def log_igloo2_registers_per_card(ts, crate, slot, qiecard, igloo, scale):
 	# Providing all commands at the same time seems to result in timeout
 	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds1 = ["get HE{0}-{1}-{2}-i_FPGA_MINOR_VERSION".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_FPGA_MAJOR_VERSION".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_ZerosRegister".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_OnesRegister".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_FPGA_TopOrBottom".format(crate, slot, qiecard)
+	cmds1 = ["get {0}-{1}-{2}-{3}_FPGA_MINOR_VERSION".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_FPGA_MAJOR_VERSION".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_ZerosRegister".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_OnesRegister".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_FPGA_TopOrBottom".format(crate, slot, qiecard, igloo)
 		 ]
-	cmds2 = ["get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_StatusReg_InputSpyWordNum".format(crate, slot, qiecard), 
-		 "get HE{0}-{1}-{2}-i_StatusReg_PLL320MHzLock".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_StatusReg_QieDLLNoLock".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_StatusReg_zero".format(crate, slot, qiecard)
+	cmds2 = ["get {0}-{1}-{2}-{3}_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_StatusReg_InputSpyWordNum".format(crate, slot, qiecard, igloo, 
+		 "get {0}-{1}-{2}-{3}_StatusReg_PLL320MHzLock".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_StatusReg_QieDLLNoLock".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_StatusReg_zero".format(crate, slot, qiecard, igloo)
 		 ]
-	cmds3 = ["get HE{0}-{1}-{2}-i_WTE_count".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_Clk_count".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_RST_QIE_count".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_scratch".format(crate, slot, qiecard)
+	cmds3 = ["get {0}-{1}-{2}-{3}_WTE_count".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_Clk_count".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_RST_QIE_count".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_scratch".format(crate, slot, qiecard, igloo)
 		 ]
-	cmds4 = ["get HE{0}-{1}-{2}-i_CapIdErrLink1_count".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-i_CapIdErrLink2_count".format(crate, slot, qiecard), 
-		 "get HE{0}-{1}-{2}-i_CapIdErrLink3_count".format(crate, slot, qiecard)
+	cmds4 = ["get {0}-{1}-{2}-{3}_CapIdErrLink1_count".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_CapIdErrLink2_count".format(crate, slot, qiecard, igloo), 
+		 "get {0}-{1}-{2}-{3}_CapIdErrLink3_count".format(crate, slot, qiecard, igloo)
 		 ]
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 
 	if scale == 1:
-		cmds_extra = ["get HE{0}-{1}-{2}-i_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard),
-			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoRun".format(crate, slot, qiecard),
-			      "get HE{0}-{1}-{2}-i_CntrReg_CImode".format(crate, slot, qiecard),
-			      "get HE{0}-{1}-{2}-i_CntrReg_InternalQIER".format(crate, slot, qiecard),  
-			      "get HE{0}-{1}-{2}-i_CntrReg_OrbHistoClear".format(crate, slot, qiecard),      
-			      "get HE{0}-{1}-{2}-i_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard),
+		cmds_extra = ["get {0}-{1}-{2}-{3}_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_OrbHistoRun".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_CImode".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_InternalQIER".format(crate, slot, qiecard, igloo),  
+			      "get {0}-{1}-{2}-{3}_CntrReg_OrbHistoClear".format(crate, slot, qiecard, igloo),      
+			      "get {0}-{1}-{2}-{3}_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard, igloo),
 			      ]
 
-		output = ngfec.send_commands(ts=ts, cmds=cmds_extra, script=True)
+		output = ngfec.send_commands(port=ts.port, cmds=cmds_extra, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -261,53 +262,53 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, scale):
 		print "No igloo registers found"
 		return ""
 
-def log_igloo2_registers_calib(ts, crate, scale):
+def log_igloo2_registers_calib(ts, crate, igloo, scale):
 	# Providing all commands at the same time seems to result in timeout
 	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds1 = ["get HE{0}-calib-i_FPGA_MINOR_VERSION".format(crate),
-		 "get HE{0}-calib-i_FPGA_MAJOR_VERSION".format(crate),
-		 "get HE{0}-calib-i_ZerosRegister".format(crate),
-		 "get HE{0}-calib-i_OnesRegister".format(crate),
-		 "get HE{0}-calib-i_FPGA_TopOrBottom".format(crate)
+	cmds1 = ["get {0}-calib-{1}_FPGA_MINOR_VERSION".format(crate, igloo),
+		 "get {0}-calib-{1}_FPGA_MAJOR_VERSION".format(crate, igloo),
+		 "get {0}-calib-{1}_ZerosRegister".format(crate, igloo),
+		 "get {0}-calib-{1}_OnesRegister".format(crate, igloo),
+		 "get {0}-calib-{1}_FPGA_TopOrBottom".format(crate, igloo)
 		 ]
-	cmds2 = ["get HE{0}-calib-i_StatusReg_InputSpyFifoEmpty".format(crate),
-		 "get HE{0}-calib-i_StatusReg_InputSpyFifoFull".format(crate),
-		 "get HE{0}-calib-i_StatusReg_InputSpyWordNum".format(crate), 
-		 "get HE{0}-calib-i_StatusReg_PLL320MHzLock".format(crate),
-		 "get HE{0}-calib-i_StatusReg_QieDLLNoLock".format(crate),
-		 "get HE{0}-calib-i_StatusReg_zero".format(crate)
+	cmds2 = ["get {0}-calib-{1}_StatusReg_InputSpyFifoEmpty".format(crate, igloo),
+		 "get {0}-calib-{1}_StatusReg_InputSpyFifoFull".format(crate, igloo),
+		 "get {0}-calib-{1}_StatusReg_InputSpyWordNum".format(crate, igloo), 
+		 "get {0}-calib-{1}_StatusReg_PLL320MHzLock".format(crate, igloo),
+		 "get {0}-calib-{1}_StatusReg_QieDLLNoLock".format(crate, igloo),
+		 "get {0}-calib-{1}_StatusReg_zero".format(crate, igloo)
 		 ]
-	cmds3 = ["get HE{0}-calib-i_WTE_count".format(crate),
-		 "get HE{0}-calib-i_Clk_count".format(crate),
-		 "get HE{0}-calib-i_RST_QIE_count".format(crate),
-		 "get HE{0}-calib-i_scratch".format(crate)
+	cmds3 = ["get {0}-calib-{1}_WTE_count".format(crate, igloo),
+		 "get {0}-calib-{1}_Clk_count".format(crate, igloo),
+		 "get {0}-calib-{1}_RST_QIE_count".format(crate, igloo),
+		 "get {0}-calib-{1}_scratch".format(crate, igloo)
 		 ]
-	cmds4 = ["get HE{0}-calib-i_CapIdErrLink1_count".format(crate),
-		 "get HE{0}-calib-i_CapIdErrLink2_count".format(crate), 
-		 "get HE{0}-calib-i_CapIdErrLink3_count".format(crate)
+	cmds4 = ["get {0}-calib-{1}_CapIdErrLink1_count".format(crate, igloo),
+		 "get {0}-calib-{1}_CapIdErrLink2_count".format(crate, igloo), 
+		 "get {0}-calib-{1}_CapIdErrLink3_count".format(crate, igloo)
 		 ]
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 
 	if scale == 1:
-		cmds_extra = ["get HE{0}-calib-i_CntrReg_WrEn_InputSpy".format(crate),
-			      "get HE{0}-calib-i_CntrReg_OrbHistoRun".format(crate),
-			      "get HE{0}-calib-i_CntrReg_CImode".format(crate),
-			      "get HE{0}-calib-i_CntrReg_InternalQIER".format(crate),  
-			      "get HE{0}-calib-i_CntrReg_OrbHistoClear".format(crate),      
-			      "get HE{0}-calib-i_StatusReg_BRIDGE_SPARE".format(crate),
+		cmds_extra = ["get {0}-calib-{1}_CntrReg_WrEn_InputSpy".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_OrbHistoRun".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_CImode".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_InternalQIER".format(crate, igloo),  
+			      "get {0}-calib-{1}_CntrReg_OrbHistoClear".format(crate, igloo),      
+			      "get {0}-calib-{1}_StatusReg_BRIDGE_SPARE".format(crate, igloo),
 			      ]
 
-		output = ngfec.send_commands(ts=ts, cmds=cmds_extra, script=True)
+		output = ngfec.send_commands(port=ts.port, cmds=cmds_extra, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -320,21 +321,23 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
 		# QIE clock phases
-		cmds = ["get HE{0}-{1}-Qie41_ck_ph".format(crate, i)]
+		cmds = ["get {0}-{1}-Qie41_ck_ph".format(crate, i)]
 		if scale == 1:
 			for j in ts.qiecards[crate,i]:
 				cmds.append("wait")
-                                cmds.extend(["get HE{0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
-		output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+                                cmds.extend(["get {0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
+		output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
 		# Other igloo stuff
 		for j in ts.qiecards[crate,i]:
-			log.append(log_igloo2_registers_per_card(ts, crate, i, j, scale))
+                    for igloo in ['iTop', 'iBot']:
+			log.append(log_igloo2_registers_per_card(ts, crate, i, j, igloo, scale))
 
-	cmds = ["get HE{0}-calib-Qie{1}_ck_ph".format(crate, nqie+1) for nqie in xrange(ts.qies_per_card)]
-	output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+	cmds = ["get {0}-calib-Qie{1}_ck_ph".format(crate, nqie+1) for nqie in xrange(ts.qies_per_card)]
+	output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
-	log.append(log_igloo2_registers_calib(ts, crate, scale))
+	log.append(log_igloo2_registers_calib(ts, crate, "iTop", scale))
+	log.append(log_igloo2_registers_calib(ts, crate, "iBot", scale))
 
 	return "".join(log)
 
@@ -343,26 +346,26 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 	# Providing all commands at the same time seems to result in timeout
 	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds1 = ["get HE{0}-{1}-{2}-B_FIRMVERSION_MAJOR".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_FIRMVERSION_MINOR".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_FIRMVERSION_SVN".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_ZEROES".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_ONES".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_ONESZEROES".format(crate, slot, qiecard)
+	cmds1 = ["get {0}-{1}-{2}-B_FIRMVERSION_MAJOR".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_FIRMVERSION_MINOR".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_FIRMVERSION_SVN".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_ZEROES".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_ONES".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_ONESZEROES".format(crate, slot, qiecard)
 		 ]
-	cmds2 = ["get HE{0}-{1}-{2}-B_WTECOUNTER".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_CLOCKCOUNTER".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_RESQIECOUNTER".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_SCRATCH".format(crate, slot, qiecard)
+	cmds2 = ["get {0}-{1}-{2}-B_WTECOUNTER".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_CLOCKCOUNTER".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_RESQIECOUNTER".format(crate, slot, qiecard),
+		 "get {0}-{1}-{2}-B_SCRATCH".format(crate, slot, qiecard)
 		 ]
-	cmds3 = ["get HE{0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard),
-		 "get HE{0}-{1}-{2}-B_SHT_rh_f".format(crate, slot, qiecard)]
+	cmds3 = ["get {0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard),]
+#		 "get {0}-{1}-{2}-B_SHT_rh_f".format(crate, slot, qiecard)] 
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -375,26 +378,26 @@ def log_bridge_registers_calib(ts, crate, scale):
 	# Providing all commands at the same time seems to result in timeout
 	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds1 = ["get HE{0}-calib-B_FIRMVERSION_MAJOR".format(crate),
-		 "get HE{0}-calib-B_FIRMVERSION_MINOR".format(crate),
-		 "get HE{0}-calib-B_FIRMVERSION_SVN".format(crate),
-		 "get HE{0}-calib-B_ZEROES".format(crate),
-		 "get HE{0}-calib-B_ONES".format(crate),
-		 "get HE{0}-calib-B_ONESZEROES".format(crate)
+	cmds1 = ["get {0}-calib-B_FIRMVERSION_MAJOR".format(crate),
+		 "get {0}-calib-B_FIRMVERSION_MINOR".format(crate),
+		 "get {0}-calib-B_FIRMVERSION_SVN".format(crate),
+		 "get {0}-calib-B_ZEROES".format(crate),
+		 "get {0}-calib-B_ONES".format(crate),
+		 "get {0}-calib-B_ONESZEROES".format(crate)
 		 ]
-	cmds2 = ["get HE{0}-calib-B_WTECOUNTER".format(crate),
-		 "get HE{0}-calib-B_CLOCKCOUNTER".format(crate),
-		 "get HE{0}-calib-B_RESQIECOUNTER".format(crate),
-		 "get HE{0}-calib-B_SCRATCH".format(crate)
+	cmds2 = ["get {0}-calib-B_WTECOUNTER".format(crate),
+		 "get {0}-calib-B_CLOCKCOUNTER".format(crate),
+		 "get {0}-calib-B_RESQIECOUNTER".format(crate),
+		 "get {0}-calib-B_SCRATCH".format(crate)
 		 ]
-	cmds3 = ["get HE{0}-calib-B_SHT_temp_f".format(crate),
-		 "get HE{0}-calib-B_SHT_rh_f".format(crate)]
+	cmds3 = ["get {0}-calib-B_SHT_temp_f".format(crate),]
+#		 "get {0}-calib-B_SHT_rh_f".format(crate)]
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -419,41 +422,31 @@ def log_control_registers_per_card(ts, crate, slot, scale):
 	# Providing all commands at the same time seems to result in timeout
 	# Until better solution is available, I will pass the commands in smaller groups
 
-	cmds1 = ["get HE{0}-{1}-peltier_adjustment_f".format(crate, slot),
-		 "get HE{0}-{1}-peltier_control".format(crate, slot),
-		 "get HE{0}-{1}-peltier_stepseconds".format(crate, slot),
-		 "get HE{0}-{1}-peltier_targettemperature_f".format(crate, slot),
-		 "get HE{0}-{1}-PeltierVoltage_f".format(crate, slot),
-		 "get HE{0}-{1}-PeltierCurrent_f".format(crate, slot)
+	cmds1 = ["get {0}-{1}-peltier_adjustment_f".format(crate, slot),
+		 "get {0}-{1}-peltier_control".format(crate, slot),
+		 "get {0}-{1}-peltier_stepseconds".format(crate, slot),
+		 "get {0}-{1}-peltier_targettemperature_f".format(crate, slot),
+		 "get {0}-{1}-PeltierVoltage_f".format(crate, slot),
+		 "get {0}-{1}-PeltierCurrent_f".format(crate, slot)
 		 ]
-	cmds2 = ["get HE{0}-{1}-BVin_f".format(crate, slot),
-		 "get HE{0}-{1}-Vin_f".format(crate, slot),
-		 "get HE{0}-{1}-Vt_f".format(crate, slot),
-		 "get HE{0}-{1}-Vdd_f".format(crate, slot)
+	cmds2 = ["get {0}-{1}-BVin_f".format(crate, slot),
+		 "get {0}-{1}-Vin_f".format(crate, slot),
+		 "get {0}-{1}-Vt_f".format(crate, slot),
+		 "get {0}-{1}-Vdd_f".format(crate, slot)
 		 ]
 	cmds3 = []
 	cmds4 = []
 	# TODO find a better way to handle this
-	if ts.name == "HEcharm":
-		#for j in [1,15,39]:
-	        #	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
-		#for j in [1,15,39]:
-		cmds4.append("get HE{0}-{1}-biasmon[1-48]_f".format(crate, slot))
-		cmds4.append("get HE{0}-{1}-LeakageCurrent[1-48]_f".format(crate, slot))
-	if ts.name == "HEfnal":
-		#for j in xrange(1,49):
-		#	cmds3.append("put HE{0}-{1}-biasvoltage{2}_f 70.0".format(crate, slot, j))
-		for j in xrange(1,49):
-			cmds4.append("get HE{0}-{1}-biasmon{2}_f".format(crate, slot, j))
-			cmds4.append("get HE{0}-{1}-LeakageCurrent{2}_f".format(crate, slot, j))
-
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+        cmds4.append("get {0}-{1}-biasmon[1-48]_f".format(crate, slot))
+        cmds4.append("get {0}-{1}-LeakageCurrent[1-48]_f".format(crate, slot))
+	
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(ts=ts, cmds=cmds2, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	#output = ngfec.send_commands(ts=ts, cmds=cmds3, script=True)
+	#output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
 	#log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(ts=ts, cmds=cmds4, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -471,19 +464,19 @@ def log_control_registers(ts, crate, slots, scale=0):
 	return "".join(log)
 
 def log_pulser_registers(ts, crate, scale):
-	cmds1 = ["get HE{0}-pulser-ledA-enable".format(crate),
-		 "get HE{0}-pulser-ledA-amplitude_f".format(crate),
-		 "get HE{0}-pulser-ledA-delay_f".format(crate),
-		 "get HE{0}-pulser-ledA-bxdelay".format(crate),
-		 "get HE{0}-pulser-ledA-width_f".format(crate),
-		 "get HE{0}-pulser-ledB-enable".format(crate),
-		 "get HE{0}-pulser-ledB-amplitude_f".format(crate),
-		 "get HE{0}-pulser-ledB-delay_f".format(crate),
-		 "get HE{0}-pulser-ledB-bxdelay".format(crate),
-		 "get HE{0}-pulser-ledB-width_f".format(crate),
+	cmds1 = ["get {0}-pulser-ledA-enable".format(crate),
+		 "get {0}-pulser-ledA-amplitude_f".format(crate),
+		 "get {0}-pulser-ledA-delay_f".format(crate),
+		 "get {0}-pulser-ledA-bxdelay".format(crate),
+		 "get {0}-pulser-ledA-width_f".format(crate),
+		 "get {0}-pulser-ledB-enable".format(crate),
+		 "get {0}-pulser-ledB-amplitude_f".format(crate),
+		 "get {0}-pulser-ledB-delay_f".format(crate),
+		 "get {0}-pulser-ledB-bxdelay".format(crate),
+		 "get {0}-pulser-ledB-width_f".format(crate),
 		 ]
 
-	output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
 
 	if len(log) > 0:
@@ -557,35 +550,35 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
 
 def LEDon(ts, amplitude = "1.0", enableB = False):
 	for crate in ts.fe_crates:
-		cmds1 = ["put HE{0}-pulser-ledA-enable 1".format(crate),
-			 "put HE{0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
-			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
-			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
+		cmds1 = ["put {0}-pulser-ledA-enable 1".format(crate),
+			 "put {0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
+			 "put {0}-pulser-ledA-delay_f 1.0".format(crate),
+			 "put {0}-pulser-ledA-bxdelay 10".format(crate),
+			 "put {0}-pulser-ledA-width_f 5.".format(crate),
 			 #"wait", 
-			 "put HE{0}-pulser-ledB-enable {1}".format(crate, "1" if enableB else "0"),
-			 "put HE{0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
-			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
-			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
-		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+			 "put {0}-pulser-ledB-enable {1}".format(crate, "1" if enableB else "0"),
+			 "put {0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
+			 "put {0}-pulser-ledB-delay_f 1.0".format(crate),
+			 "put {0}-pulser-ledB-bxdelay 10".format(crate),
+			 "put {0}-pulser-ledB-width_f 5.".format(crate),]
+		output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
 def LEDoff(ts, amplitude = "1.0"):
 	for crate in ts.fe_crates:
-		cmds1 = ["put HE{0}-pulser-ledA-enable 0".format(crate),
-			 "put HE{0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
-			 "put HE{0}-pulser-ledA-delay_f 1.0".format(crate),
-			 "put HE{0}-pulser-ledA-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledA-width_f 5.".format(crate),
+		cmds1 = ["put {0}-pulser-ledA-enable 0".format(crate),
+			 "put {0}-pulser-ledA-amplitude_f {1}".format(crate, amplitude),
+			 "put {0}-pulser-ledA-delay_f 1.0".format(crate),
+			 "put {0}-pulser-ledA-bxdelay 10".format(crate),
+			 "put {0}-pulser-ledA-width_f 5.".format(crate),
 
-			 "put HE{0}-pulser-ledB-enable 0".format(crate),
-			 "put HE{0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
-			 "put HE{0}-pulser-ledB-delay_f 1.0".format(crate),
-			 "put HE{0}-pulser-ledB-bxdelay 10".format(crate),
-			 "put HE{0}-pulser-ledB-width_f 5.".format(crate),]
-		output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+			 "put {0}-pulser-ledB-enable 0".format(crate),
+			 "put {0}-pulser-ledB-amplitude_f {1}".format(crate, amplitude),
+			 "put {0}-pulser-ledB-delay_f 1.0".format(crate),
+			 "put {0}-pulser-ledB-bxdelay 10".format(crate),
+			 "put {0}-pulser-ledB-width_f 5.".format(crate),]
+		output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
@@ -597,8 +590,8 @@ def BVscan(ts, biasVoltages):
 	for bv in biasVoltages:
 		for i, crate in enumerate(ts.fe_crates):
 			for slot in ts.qie_slots[i]:
-				cmds1 = ["put HE{0}-{1}-biasvoltage[1-48]_f 48*{2}".format(crate, slot, bv),]
-				output = ngfec.send_commands(ts=ts, cmds=cmds1, script=True)
+				cmds1 = ["put {0}-{1}-biasvoltage[1-48]_f 48*{2}".format(crate, slot, bv),]
+				output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
 				for out in output:
 					print "{0} -> {1}".format(out["cmd"], out["result"])
 	
@@ -754,7 +747,7 @@ if __name__ == "__main__":
 	period_bias = float(options.bias)
 
 	# Set up teststand:
-	ts = teststand(name)
+	ts = teststand()
 	# Get a status object
         ts_status = TestStandStatus(ts)
 
