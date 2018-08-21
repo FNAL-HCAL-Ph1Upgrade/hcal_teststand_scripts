@@ -9,7 +9,7 @@
 #from hcal_teststand import *
 from hcal_teststand.simpleTestStand import teststand
 import hcal_teststand.uhtr as uhtr
-import hcal_teststand.ngfec as ngfec
+from hcal_teststand.utilities import *
 #from hcal_teststand.hcal_teststand import teststand
 #from hcal_teststand.utilities import *
 import sys
@@ -21,6 +21,8 @@ from commands import getoutput
 import monitor_teststand, HEsetup
 from teststand_status import TestStandStatus
 
+
+
 # CLASSES:
 
 # /CLASSES
@@ -28,20 +30,15 @@ from teststand_status import TestStandStatus
 # FUNCTIONS:
 def log_temp(ts):
 	log = ""
-	try:
-		temps = ts.get_temps()
-	except Exception as ex:
-		print ex
-		temps = False
 	log += "%% TEMPERATURES\n"
- 	if temps:
-		for crate, cratetemps in enumerate(temps):
-			# cratetemps is a list of temperatures
-			for itemps, temps in enumerate(cratetemps):
-				# bit of a hack now
-				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
-									     ts.qie_slots[crate][itemps],
-									     temps[0])
+# 	if temps:
+#		for crate, cratetemps in enumerate(temps):
+#			# cratetemps is a list of temperatures
+#			for itemps, temps in enumerate(cratetemps):
+#				# bit of a hack now
+#				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
+#									     ts.qie_slots[crate][itemps],
+#									     temps[0])
 
 	return log
 def log_prbs(ts, ts_status):
@@ -49,16 +46,16 @@ def log_prbs(ts, ts_status):
 
 	for crate in ts.fe_crates:
 		cmds = [
-			"get {0}-fec_rx_prbs_error_cnt".format(crate),
-			"get {0}-mezz_rx_prbs_error_cnt".format(crate),
-			"get {0}-b2b_rx_prbs_error_cnt".format(crate),		
-			"get {0}-sb2b_rx_prbs_error_cnt".format(crate),
-			"get fec1-SinErr_cnt".format(crate),
-			"get fec1-DbErr_cnt".format(crate),
-			"get {0}-fec_rxlos_cnt".format(crate),
-			"get {0}-fec_dv_down_cnt".format(crate),
+			"get {0}a-fec_rx_prbs_error_cnt".format(crate),
+                        "get {0}a-fec_rx_rs_err_cnt".format(crate),
+			"get {0}a-mezz_rx_prbs_error_cnt".format(crate),
+			"get {0}a-b2b_rx_prbs_error_cnt".format(crate),		
+			"get {0}a-sb2b_rx_prbs_error_cnt".format(crate),
+			"get hbfec1-SinErr_cnt".format(crate),
+			"get hbfec1-DbErr_cnt".format(crate),
+			"get {0}a-fec_dv_down_cnt".format(crate),
 			]
-		output = ngfec.send_commands(ts=ts, cmds=cmds, script=True)
+		output = ts.ngfec.send_commands(ts=ts, cmds=cmds, script=True)
 		for result in output:
 			# check if it's different:
 			if getattr(ts_status.control[crate], result["cmd"].split(" ")[-1].split("-")[-1]) != result["result"]:
@@ -72,35 +69,35 @@ def log_prbs(ts, ts_status):
 
 def log_humidity(ts):
 	log = ""
-	try:
-		hums = ts.get_hums()
-	except Exception as ex:
-		print ex
-		hums = False
-	log += "%% HUMIDITY\n"
- 	if hums:
-		for crate, cratetemps in enumerate(hums):
-			for itemps, temps in enumerate(cratetemps):
-				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
-									     ts.qie_slots[crate][itemps],
-									     temps)
+#	try:
+#		hums = ts.get_hums()
+#	except Exception as ex:
+#		print ex
+#		hums = False
+#	log += "%% HUMIDITY\n"
+# 	if hums:
+#		for crate, cratetemps in enumerate(hums):
+#			for itemps, temps in enumerate(cratetemps):
+#				log += "Crate {0} -> RM {1} -> {2}\n".format(ts.fe_crates[crate],
+#									     ts.qie_slots[crate][itemps],
+#									     temps)
 
 	return log
 
 def log_power(ts):
 	log = "%% POWER\n"
-	t0 = time_string()		# Get the time before. I get the time again after everything.
-	#power_fe = ts_157.get_power(ts,6)
-	power_fe8 = ts_157.get_power(ts,8)
-	#log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
-	log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
-	try:
-		power_ngccm = ngccm.get_power(ts).values()[0]		# Take only the crate 1 results (there's only one crate, anyway).
-	except Exception as ex:
-		print ex
-		power_ngccm = []
-	for result in power_ngccm:
-		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
+#	t0 = time_string()		# Get the time before. I get the time again after everything.
+#	#power_fe = ts_157.get_power(ts,6)
+#	power_fe8 = ts_157.get_power(ts,8)
+#	#log += "HF {0:.2f} V\nHF {1:.2f} A\n".format(power_fe["V"], power_fe["I"])
+#	log += "HE {0:.2f} V\nHE {1:.2f} A\n".format(power_fe8["V"], power_fe8["I"])
+#	try:
+#		power_ngccm = ngccm.get_power(ts).values()[0]		# Take only the crate 1 results (there's only one crate, anyway).
+#	except Exception as ex:
+#		print ex
+#		power_ngccm = []
+#	for result in power_ngccm:
+#		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
 
 def log_registers(ts, scale=0):		# Scale 0 is the sparse set of registers, 1 is full.
@@ -125,35 +122,36 @@ def log_registers(ts, scale=0):		# Scale 0 is the sparse set of registers, 1 is 
 def log_registers_crate(ts, crate, scale):
 	  
 	cmds = [
-		"get fec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
+		"get hbfec1-LHC_clk_freq",		# Check that this is > 400776 and < 400788.
 		#"get {0}-mezz_ONES".format(crate),		# Check that this is all 1s.
 		#"get {0}-mezz_ZEROES".format(crate),		# Check that is is all 0s.
-		"get {0}-bkp_pwr_bad".format(crate),
-		"get {0}-mezz_scratch".format(crate),
-		"get fec1-qie_reset_cnt",
-		"get fec1-sfp1_status.RxLOS",
-		"get fec1-qie_reset_early_cnt",
-		"get fec1-qie_reset_ontime_cnt",
-		"get fec1-qie_reset_late_cnt",
-		"get {0}-fec_bkp_pwr_flip_cnt".format(crate)
+		"get {0}a-bkp_pwr_bad".format(crate),
+		"get {0}a-mezz_scratch".format(crate),
+		"get hbfec1-qie_reset_cnt",
+		"get hbfec1-sfp1_status.RxLOS",
+		"get hbfec1-qie_reset_early_cnt",
+		"get hbfec1-qie_reset_ontime_cnt",
+		"get hbfec1-qie_reset_late_cnt",
+		"get {0}a-fec_bkp_pwr_flip_cnt".format(crate)
 		]
 
 		#for i in slots:
-	#		for j in ts.qiecards[crate,i]:
+	#		for j in ts.qiecards[crate][i]:
 #				cmds.append("get {0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 #				cmds.append("get {0}-{1}-{2}-B_RESQIECOUNTER".format(crate,i,j+1))
 	if scale == 1:
 		cmds1 = [
-		"get fec1-fec_firmware_date",
-		"get {0}-mezz_TMR_ERROR_COUNT".format(crate),
-		"get {0}-mezz_FPGA_MAJOR_VERSION".format(crate),
-		"get {0}-mezz_FPGA_MINOR_VERSION".format(crate),
+		"get hbfec1-fec_firmware_date",
+		"get {0}a-mezz_TMR_ERROR_COUNT".format(crate),
+		"get {0}a-mezz_FPGA_MAJOR_VERSION".format(crate),
+		"get {0}a-mezz_FPGA_MINOR_VERSION".format(crate),
 		] # needs updating
 		cmds.extend(cmds1)
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds)
+	output = ts.ngfec.send_commands(cmds=cmds)
 	log = ""
 
+        print "THE OUTPUT\n", output
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
@@ -173,7 +171,7 @@ def log_qie_registers_per_qie(ts, crate, slot, nqie):
 		"get {0}-{1}-QIE{2}_ChargeInjectDAC".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_FixRange".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_Lvds".format(crate,slot,nqie),
-		"get {0}-{1}-QIE{2}_TDCmode".format(crate,slot,nqie),
+		"get {0}-{1}-QIE{2}_TDCMode".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_TimingThresholdDAC".format(crate,slot,nqie),  
 		"get {0}-{1}-QIE{2}_CkOutEn".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_Gsel".format(crate,slot,nqie),
@@ -181,8 +179,8 @@ def log_qie_registers_per_qie(ts, crate, slot, nqie):
 		"get {0}-{1}-QIE{2}_TGain".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
 		]
-	
-	output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
+	print cmds
+	output = ts.ngfec.send_commands(cmds=cmds, script=True)
 	log = ""
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
@@ -195,7 +193,7 @@ def log_qie_registers(ts, crate, slots, scale=0):
 		#if scale == 0:
 	#		log.append(log_qie_registers_per_qie(ts, crate, i, 45))
 	#	elif scale == 1:
-                for j in ts.qiecards[crate,i]:
+                for j in ts.qiecards[crate][i]:
                         for k in xrange(ts.qies_per_card):
                                 log.append(log_qie_registers_per_qie(ts, crate, i, (j-1)*ts.qies_per_card+k+1))
 
@@ -216,31 +214,36 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, igloo, scale):
 		 "get {0}-{1}-{2}-{3}_ZerosRegister".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_OnesRegister".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_FPGA_TopOrBottom".format(crate, slot, qiecard, igloo)
-		 ]
+                ]
 	cmds2 = ["get {0}-{1}-{2}-{3}_StatusReg_InputSpyFifoEmpty".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_StatusReg_InputSpyFifoFull".format(crate, slot, qiecard, igloo),
-		 "get {0}-{1}-{2}-{3}_StatusReg_InputSpyWordNum".format(crate, slot, qiecard, igloo, 
+		 "get {0}-{1}-{2}-{3}_StatusReg_InputSpyWordNum".format(crate, slot, qiecard, igloo), 
 		 "get {0}-{1}-{2}-{3}_StatusReg_PLL320MHzLock".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_StatusReg_QieDLLNoLock".format(crate, slot, qiecard, igloo),
-		 "get {0}-{1}-{2}-{3}_StatusReg_zero".format(crate, slot, qiecard, igloo)
-		 ]
+                ]
 	cmds3 = ["get {0}-{1}-{2}-{3}_WTE_count".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_Clk_count".format(crate, slot, qiecard, igloo),
-		 "get {0}-{1}-{2}-{3}_RST_QIE_count".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_bc0_gen_error".format(crate, slot, qiecard, igloo),
+		 "get {0}-{1}-{2}-{3}_bc0_gen_locked".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_count_a".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_count_b".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_missing_a".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_shift_a".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_missing_b".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_bc0_status_shift_b".format(crate, slot, qiecard, igloo),
 		 "get {0}-{1}-{2}-{3}_scratch".format(crate, slot, qiecard, igloo)
 		 ]
-	cmds4 = ["get {0}-{1}-{2}-{3}_CapIdErrLink1_count".format(crate, slot, qiecard, igloo),
-		 "get {0}-{1}-{2}-{3}_CapIdErrLink2_count".format(crate, slot, qiecard, igloo), 
-		 "get {0}-{1}-{2}-{3}_CapIdErrLink3_count".format(crate, slot, qiecard, igloo)
+	cmds4 = ["get {0}-{1}-{2}-{3}_ChAlignStatus".format(crate, slot, qiecard, igloo),
+                 "get {0}-{1}-{2}-{3}_Spy96bits".format(crate, slot, qiecard, igloo),
 		 ]
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 
@@ -253,7 +256,7 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, igloo, scale):
 			      "get {0}-{1}-{2}-{3}_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard, igloo),
 			      ]
 
-		output = ngfec.send_commands(port=ts.port, cmds=cmds_extra, script=True)
+		output = ts.ngfec.send_commands(cmds=cmds_extra, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -277,25 +280,28 @@ def log_igloo2_registers_calib(ts, crate, igloo, scale):
 		 "get {0}-calib-{1}_StatusReg_InputSpyWordNum".format(crate, igloo), 
 		 "get {0}-calib-{1}_StatusReg_PLL320MHzLock".format(crate, igloo),
 		 "get {0}-calib-{1}_StatusReg_QieDLLNoLock".format(crate, igloo),
-		 "get {0}-calib-{1}_StatusReg_zero".format(crate, igloo)
 		 ]
 	cmds3 = ["get {0}-calib-{1}_WTE_count".format(crate, igloo),
 		 "get {0}-calib-{1}_Clk_count".format(crate, igloo),
-		 "get {0}-calib-{1}_RST_QIE_count".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_count_a".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_count_b".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_missing_a".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_shift_a".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_missing_b".format(crate, igloo),
+                 "get {0}-calib-{1}_bc0_status_shift_b".format(crate, igloo),
 		 "get {0}-calib-{1}_scratch".format(crate, igloo)
 		 ]
-	cmds4 = ["get {0}-calib-{1}_CapIdErrLink1_count".format(crate, igloo),
-		 "get {0}-calib-{1}_CapIdErrLink2_count".format(crate, igloo), 
-		 "get {0}-calib-{1}_CapIdErrLink3_count".format(crate, igloo)
+	cmds4 = ["get {0}-calib-{1}_ChAlignStatus_count".format(crate, igloo),
+                 "get {0}-calib-{1}_Spy96bits".format(crate, igloo),
 		 ]
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 
@@ -308,7 +314,7 @@ def log_igloo2_registers_calib(ts, crate, igloo, scale):
 			      "get {0}-calib-{1}_StatusReg_BRIDGE_SPARE".format(crate, igloo),
 			      ]
 
-		output = ngfec.send_commands(port=ts.port, cmds=cmds_extra, script=True)
+		output = ts.ngfec.send_commands(cmds=cmds_extra, script=True)
 		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -321,20 +327,20 @@ def log_igloo2_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
 		# QIE clock phases
-		cmds = ["get {0}-{1}-Qie41_ck_ph".format(crate, i)]
-		if scale == 1:
-			for j in ts.qiecards[crate,i]:
-				cmds.append("wait")
-                                cmds.extend(["get {0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
-		output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
-		log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
+		###cmds = ["get {0}-{1}-Qie41_ck_ph".format(crate, i)]
+		###if scale == 1:
+		###	for j in ts.qiecards[crate][i]:
+		###		cmds.append("wait")
+                ###                cmds.extend(["get {0}-{1}-Qie{2}_ck_ph".format(crate, i, (j-1)*ts.qies_per_card+nqie+1) for nqie in xrange(ts.qies_per_card)])
+		###output = ts.ngfec.send_commands(cmds=cmds, script=True)
+		###log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
 		# Other igloo stuff
-		for j in ts.qiecards[crate,i]:
+		for j in ts.qiecards[crate][i]:
                     for igloo in ['iTop', 'iBot']:
 			log.append(log_igloo2_registers_per_card(ts, crate, i, j, igloo, scale))
 
 	cmds = ["get {0}-calib-Qie{1}_ck_ph".format(crate, nqie+1) for nqie in xrange(ts.qies_per_card)]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])		   
 	log.append(log_igloo2_registers_calib(ts, crate, "iTop", scale))
 	log.append(log_igloo2_registers_calib(ts, crate, "iBot", scale))
@@ -348,7 +354,6 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 
 	cmds1 = ["get {0}-{1}-{2}-B_FIRMVERSION_MAJOR".format(crate, slot, qiecard),
 		 "get {0}-{1}-{2}-B_FIRMVERSION_MINOR".format(crate, slot, qiecard),
-		 "get {0}-{1}-{2}-B_FIRMVERSION_SVN".format(crate, slot, qiecard),
 		 "get {0}-{1}-{2}-B_ZEROES".format(crate, slot, qiecard),
 		 "get {0}-{1}-{2}-B_ONES".format(crate, slot, qiecard),
 		 "get {0}-{1}-{2}-B_ONESZEROES".format(crate, slot, qiecard)
@@ -361,11 +366,11 @@ def log_bridge_registers_per_card(ts, crate, slot, qiecard, scale):
 	cmds3 = ["get {0}-{1}-{2}-B_SHT_temp_f".format(crate, slot, qiecard),]
 #		 "get {0}-{1}-{2}-B_SHT_rh_f".format(crate, slot, qiecard)] 
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -380,7 +385,6 @@ def log_bridge_registers_calib(ts, crate, scale):
 
 	cmds1 = ["get {0}-calib-B_FIRMVERSION_MAJOR".format(crate),
 		 "get {0}-calib-B_FIRMVERSION_MINOR".format(crate),
-		 "get {0}-calib-B_FIRMVERSION_SVN".format(crate),
 		 "get {0}-calib-B_ZEROES".format(crate),
 		 "get {0}-calib-B_ONES".format(crate),
 		 "get {0}-calib-B_ONESZEROES".format(crate)
@@ -393,11 +397,11 @@ def log_bridge_registers_calib(ts, crate, scale):
 	cmds3 = ["get {0}-calib-B_SHT_temp_f".format(crate),]
 #		 "get {0}-calib-B_SHT_rh_f".format(crate)]
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds3, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -410,7 +414,7 @@ def log_bridge_registers_calib(ts, crate, scale):
 def log_bridge_registers(ts, crate, slots, scale=0):
 	log = []
 	for i in slots:
-		for j in ts.qiecards[crate,i]:
+		for j in ts.qiecards[crate][i]:
 			log.append(log_bridge_registers_per_card(ts, crate, i, j, scale))
 
 	log.append(log_bridge_registers_calib(ts, crate, scale))
@@ -440,13 +444,13 @@ def log_control_registers_per_card(ts, crate, slot, scale):
         cmds4.append("get {0}-{1}-biasmon[1-48]_f".format(crate, slot))
         cmds4.append("get {0}-{1}-LeakageCurrent[1-48]_f".format(crate, slot))
 	
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
-	output = ngfec.send_commands(port=ts.port, cmds=cmds2, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds2, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	#output = ngfec.send_commands(port=ts.port, cmds=cmds3, script=True)
+	#output = ts.ngfec.send_commands(cmds=cmds3, script=True)
 	#log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
-	output = ngfec.send_commands(port=ts.port, cmds=cmds4, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds4, script=True)
 	log.extend(["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output])
 
 	if len(log) > 0:
@@ -465,18 +469,18 @@ def log_control_registers(ts, crate, slots, scale=0):
 
 def log_pulser_registers(ts, crate, scale):
 	cmds1 = ["get {0}-pulser-ledA-enable".format(crate),
-		 "get {0}-pulser-ledA-amplitude_f".format(crate),
-		 "get {0}-pulser-ledA-delay_f".format(crate),
+		 "get {0}-pulser-ledA-attenuation".format(crate),
+		 "get {0}-pulser-ledA-delay".format(crate),
 		 "get {0}-pulser-ledA-bxdelay".format(crate),
-		 "get {0}-pulser-ledA-width_f".format(crate),
+		 "get {0}-pulser-ledA-width".format(crate),
 		 "get {0}-pulser-ledB-enable".format(crate),
-		 "get {0}-pulser-ledB-amplitude_f".format(crate),
-		 "get {0}-pulser-ledB-delay_f".format(crate),
+		 "get {0}-pulser-ledB-attenuation".format(crate),
+		 "get {0}-pulser-ledB-delay".format(crate),
 		 "get {0}-pulser-ledB-bxdelay".format(crate),
-		 "get {0}-pulser-ledB-width_f".format(crate),
+		 "get {0}-pulser-ledB-width".format(crate),
 		 ]
 
-	output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+	output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 	log = ["{0} -> {1}\n".format(result["cmd"], result["result"]) for result in output]
 
 	if len(log) > 0:
@@ -561,7 +565,7 @@ def LEDon(ts, amplitude = "1.0", enableB = False):
 			 "put {0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put {0}-pulser-ledB-bxdelay 10".format(crate),
 			 "put {0}-pulser-ledB-width_f 5.".format(crate),]
-		output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+		output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
@@ -578,7 +582,7 @@ def LEDoff(ts, amplitude = "1.0"):
 			 "put {0}-pulser-ledB-delay_f 1.0".format(crate),
 			 "put {0}-pulser-ledB-bxdelay 10".format(crate),
 			 "put {0}-pulser-ledB-width_f 5.".format(crate),]
-		output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+		output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 		for out in output:
 			print "{0} -> {1}".format(out["cmd"], out["result"])
 
@@ -591,7 +595,7 @@ def BVscan(ts, biasVoltages):
 		for i, crate in enumerate(ts.fe_crates):
 			for slot in ts.qie_slots[i]:
 				cmds1 = ["put {0}-{1}-biasvoltage[1-48]_f 48*{2}".format(crate, slot, bv),]
-				output = ngfec.send_commands(port=ts.port, cmds=cmds1, script=True)
+				output = ts.ngfec.send_commands(cmds=cmds1, script=True)
 				for out in output:
 					print "{0} -> {1}".format(out["cmd"], out["result"])
 	
@@ -775,6 +779,7 @@ if __name__ == "__main__":
 				BVscan(ts, [60., 65., 65.5, 66., 66.5, 67., 67.5, 68., 68.5, 69., 69.5, 70., 70.5, 71.])
 				print "End BV scan"
 			if (period_long!=0) and (dt_long > period_long*60):
+                                "SLOW"
 				t0_long = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 				# also parse the log here
@@ -791,6 +796,7 @@ if __name__ == "__main__":
 				LEDoff(ts)
 				print "End LED run"
 			elif (period!=0) and (dt > period*60):
+                                print "LESS SLOW"
 				t0 = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=0)
 				# also parse the log here
@@ -804,10 +810,12 @@ if __name__ == "__main__":
 						script = False)           
 				print "End histo run"                                
 			elif (period_fast!=0) and (dt_fast > period_fast):
+                                print "FAST"
 				t0_fast = time()
 				record_fast(ts=ts, ts_status = ts_status, path=path)
 	
 			elif strftime("%H:%M") == options.ptime:
+                                print "Medium"
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 			        # also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 1)
@@ -816,12 +824,12 @@ if __name__ == "__main__":
 		except KeyboardInterrupt:
 			print "bye!"
 			sys.exit()
-		except Exception as ex:
-			nfailed_tries += 1
-		 	print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
-		 	print ex
-		 	if nfailed_tries > 10:
-		 		print "System is in a bad state, stopping the logger nicely and alerting experts..."
+###		except Exception as ex:
+###			nfailed_tries += 1
+###		 	print "Something weird happened (occasion {0}), perhaps a time-out or very bad data".format(nfailed_tries)
+###		 	print ex
+###		 	if nfailed_tries > 10:
+###		 		print "System is in a bad state, stopping the logger nicely and alerting experts..."
 				#monitor_teststand.send_email("Problem for HE Teststand {0}!".format(ts.name),
 				#			     "Please check system now. Multiple exceptions were caught. Something is not working properly, potentially multiple timeouts from ccmServer.")
 				#sys.exit()

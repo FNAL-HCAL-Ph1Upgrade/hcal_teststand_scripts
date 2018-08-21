@@ -13,34 +13,22 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.OnTheFlyAlignment = 0
         self.CDRreset = 1
         self.GTXreset = 1
-        if tstype == "HEfnal":
-            self.OrbitDelay = 44
-            self.n_active_links = 6
-            self.maxADC = 50
-            self.maxAveADC = 10
-        elif tstype == "HEcharm":
-            self.OrbitDelay = 53
-            self.n_active_links = 10
-            self.maxADC = 100
-            self.maxAveADC = 20            
-        else:
-            # Not implemented yet
-            self.OrbitDelay = 50
-            self.n_active_links = 8
-            self.maxADC = 10
-            self.maxAveADC = 10
+        self.OrbitDelay = 53
+        self.n_active_links = 10
+        self.maxADC = 100
+        self.maxAveADC = 20            
 
 class ControlRegisters:
     def __init__(self, tstype="HEcharm"):
         self.fec_rx_prbs_error_cnt = 0
+        self.fec_rx_rs_err_cnt = 0
         self.mezz_rx_prbs_error_cnt = 0
         self.b2b_rx_prbs_error_cnt = 0
         self.sb2b_rx_prbs_error_cnt = 0
         self.SinErr_cnt = 0
         self.DbErr_cnt = 0
-        self.fec_rxlos_cnt = 0
         self.fec_dv_down_cnt = 0
-
+        
 class ControlLink:
     def __init__(self):
         self.qie_reset_early_cnt = 0
@@ -190,10 +178,6 @@ class ControlCardRegisters:
         #self.Vin_f = 
         #self.Vt_f =
         #self.Vdd_f =
-        if tstype == "HEfnal": 
-            for i in xrange(1,49):
-                setattr(self, "biasmon{0}_f".format(i), 70.0)
-                #setattr(self, "LeakageCurrent{0}_f".format(i), )
         #if tstype == "HEcharm":
             #for i in [1,15,39]:
                 #setattr(self, "biasmon{0}_f".format(i), 69.0)
@@ -209,8 +193,8 @@ that are expected to change"""
     def __init__(self, ts):
 
         # Check whether a teststand status was provided
-        if not isinstance(ts, hc.teststand):
-            raise TypeError("You should create the TestStandStatus object with a teststand object!!")
+#        if not isinstance(ts, hc.teststand):
+#            raise TypeError("You should create the TestStandStatus object with a teststand object!!")
 
         self.tstype = ts.name
         
@@ -232,7 +216,7 @@ that are expected to change"""
             for qie in xrange(ts.qies_per_card):
                 self.qies[crate,"calib",qie+1] = QIERegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
-                for qiecard in ts.qiecards[crate,slot]:
+                for qiecard in ts.qiecards[crate][slot]:
                     for qie in xrange(ts.qies_per_card):
                         self.qies[crate, slot, (qiecard-1)*ts.qies_per_card+qie+1] = QIERegisters(self.tstype)
 
@@ -242,7 +226,7 @@ that are expected to change"""
             self.igloos[crate, "calib", 1] = IglooRegisters(1, ts.qies_per_card, self.tstype)
 
             for slot in ts.qie_slots[icrate]:
-                for qiecard in ts.qiecards[crate,slot]:
+                for qiecard in ts.qiecards[crate][slot]:
                     self.igloos[crate, slot, qiecard] = IglooRegisters(qiecard, ts.qies_per_card, self.tstype)
 
         # Store the bridge information
@@ -250,7 +234,7 @@ that are expected to change"""
         for icrate, crate in enumerate(ts.fe_crates):
             self.bridges[crate, "calib", 1] = BridgeRegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
-                for qiecard in ts.qiecards[crate,slot]:
+                for qiecard in ts.qiecards[crate][slot]:
                     self.bridges[crate, slot, qiecard] = BridgeRegisters(self.tstype)
 
         # Store the control card information

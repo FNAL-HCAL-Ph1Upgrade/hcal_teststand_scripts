@@ -1,9 +1,25 @@
+from ngfec_ted import ngfec
+
+class UHTR:
+    def __init__(self, crate = 41, slot = 4):
+        self.crate = crate
+        self.slot = slot
+        self.ip = "192.168.%i.%i"%(crate, slot)
+
 class teststand:
     def __init__(self):
-        self.port = 64200
-        self.fe_crates = ["HB0",]
+        self.name = "bob"
+        self.port = 64000
+        self.ngfec_port = self.port
+        self.control_hub = "localhost"
+        self.fe_crates = ["HB1",]
         self.qie_slots = [[1,2]]
-        self.qiecards = [[[1,2,3,4,],[1,2,3,4]]]
-        self.qies_per_card = 64
+        self.qiecards = {"HB1":{1:[1,2,3,4,],2:[1,2,3,4]}}
+        self.qies_per_card = 16
+        self.uhtrs = {("HB1",1):UHTR(41, 4),}
+        self.ngfec = ngfec(self.control_hub, self.port)
+
+    def uhtr_ip(self, crate, slot):
+        return "192.168.%i.%i"%(crate, slot)
 
 
