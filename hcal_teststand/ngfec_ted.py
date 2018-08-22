@@ -7,7 +7,7 @@ from time import time
 class ngfec:
 
     def __init__(self, host, port, logfile=sys.stdout):
-        self.connect(host, port, logfile=sys.stdout)
+        self.connect(host, port, logfile=logfile)
 
     def connect(self, host, port, logfile=sys.stdout):
         s = "ngFEC.exe -z -c -t -p %d -H %s" % (port, host)

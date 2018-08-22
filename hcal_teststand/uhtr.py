@@ -174,7 +174,8 @@ def send_commands(ts=None, crate=None, slot=None, ip=None, control_hub=None, cmd
         results = {}                # Results will be indexed by uHTR IP unless a "ts" has been specified, in which case they'll be indexed by (crate, slot).
         
         ## Parse ip argument:
-        ips = meta.parse_args_ip(ts=ts, crate=crate, slot=slot, ip=ip)
+        print crate, slot
+        ips = {ts.uhtr_ip(crate, slot):None}
         if ips:
                 ## Parse control_hub argument:
                 control_hub = meta.parse_args_hub(ts=ts, control_hub=control_hub)
@@ -306,7 +307,7 @@ def linkStatus(ts, script = False):
                                                    slot=uhtr_.slot,
                                                    ip=uhtr_.ip,
                                                    control_hub=ts.control_hub,
-                                                   script=script)[uhtr_.crate,uhtr_.slot]
+                                                   script=script)[uhtr_.ip]
                                )
                               )
         return output
@@ -326,6 +327,7 @@ def linkStatus_per_uhtr(ts=None, crate=None, slot=None, ip=None, control_hub=Non
                 ]
         
         result = send_commands(ts=ts, crate=crate, slot=slot, cmds=cmds, ip=ip, control_hub=control_hub, script=script)
+
         if result:
                 return result
         else:
@@ -356,8 +358,8 @@ def parseLinkStatus(raw_link_output, verbose=True):
         #                linkstart.append(i)
         #print links
 
-        row1Start = 'Link               [ 0]     [ 1]     [ 2]     [ 3]     [ 4]     [ 5]     [ 6]     [ 7]     [ 8]     [ 9]     [10]     [11]'
-        row2Start = 'Link               [12]     [13]     [14]     [15]     [16]     [17]     [18]     [19]     [20]     [21]     [22]     [23]'
+        row1Start = 'PPOD0[Link/status]   [ 0'
+        row2Start = 'PPOD1[Link/status]   [12'
     
         links = [[ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11],
                  [12,13,14,15,16,17,18,19,20,21,22,23]]
@@ -374,7 +376,7 @@ def parseLinkStatus(raw_link_output, verbose=True):
                 if row2Start in line:
                         row = 1
     
-                if 'BadCounter' in line:
+                if '[Link/status]' in line:
                         badCounterOn = line.split()[1:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
@@ -382,41 +384,49 @@ def parseLinkStatus(raw_link_output, verbose=True):
                                         statData[link]['On'] = True
                                 else:
                                         statData[link]['On'] = False
-                if 'Bad Data' in line:
-                        badData = line.split()[2:]
+                if '8b10b bad data' in line:
+                        badData = line.split()[3:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['badData'] = float(badData[i])
-                if 'Bad data rate' in line:
-                        badDataRate = line.split()[3:]
+                                statData[link]['badData'] = int(badData[i], 16)
+                if 'BC0 rate(kHz)' in line:
+                        orbitRates = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['badDataRate'] = float(badDataRate[i])
-                if 'OrbitRate(kHz)' in line:
-                        orbitRates = line[14:].split()
+                                statData[link]['orbitRates'] = float(orbitRates[i])
+                if 'BadAlign/FIFOfull' in line:
+                        badAlign = line.split()[1:]
+                        for i in range(len(links[row])):
+                                link = links[row][i/2]
+                                if i % 2 == 0:
+                                        statData[link]['badAlign'] = int(badAlign[i], 16)
+                                else:
+                                        statData[link]['FIFOFull'] = int(badAlign[i], 16)
+                if 'BPRV Status' in line:
+                        BPRVStat = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['orbitRates'] = orbitRates[i]
-                if 'Bad align' in line:
+                                statData[link]['BVRDStatus'] = int(BPRVStat[i])
+                if 'Invalid words' in line:
                         badAlign = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['badAlign'] = int(badAlign[i])
-                if 'Align BCN' in line:
+                                statData[link]['invalidWords'] = int(badAlign[i], 16)
+                if 'Write delay' in line:
                         alignBCN = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['alignBCN'] = int(alignBCN[i])
-                if 'Align occ' in line:
+                                statData[link]['writeDelay'] = int(alignBCN[i])
+                if 'Read delay' in line:
                         alignOcc = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['alignOcc'] = int(alignOcc[i])
-                if 'Align delta' in line:
+                                statData[link]['readDelay'] = int(alignOcc[i])
+                if 'FIFO occ.(*4ns)' in line:
                         alignDelta = line.split()[2:]
                         for i in range(len(links[row])):
                                 link = links[row][i]
-                                statData[link]['alignDelta'] = int(alignDelta[i])
+                                statData[link]['FIFOOcc'] = int(alignDelta[i])
     
         return statData, "\n".join(lines)
     
@@ -448,7 +458,7 @@ def get_histos(ts, n_orbits=5000, sepCapID=0, file_out_base="", script = False):
 					 n_orbits=n_orbits,
 					 sepCapID=sepCapID,
 					 file_out=file_out_base+"_{0}.root".format(uhtr_.ip)
-					 )[uhtr_.crate,uhtr_.slot],
+					 )[uhtr_.ip],
 			       file_out_base+"_{0}".format(uhtr_.ip)
 			       )
                               )

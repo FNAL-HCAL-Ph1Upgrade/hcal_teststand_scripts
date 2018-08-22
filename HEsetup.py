@@ -33,7 +33,7 @@ def HEsetup(ts, section="all"):
 				 "put {0}-{1}-SetPeltierVoltage_f 1.".format(crate, slot)
 				 ]
 			
-			for qiecard in ts.qiecards[crate, slot]:
+			for qiecard in ts.qiecards[crate][slot]:
 				cmds4 = ["put {0}-{1}-{2}-i_scratch 0xab".format(crate, slot, qiecard),
 					 "put {0}-{1}-{2}-B_SCRATCH 0xab".format(crate, slot, qiecard)
 					 ]

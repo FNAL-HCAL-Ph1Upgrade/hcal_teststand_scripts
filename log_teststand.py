@@ -151,7 +151,6 @@ def log_registers_crate(ts, crate, scale):
 	output = ts.ngfec.send_commands(cmds=cmds)
 	log = ""
 
-        print "THE OUTPUT\n", output
 	for result in output:
 		log += "{0} -> {1}\n".format(result["cmd"], result["result"])
 	return log
@@ -179,7 +178,6 @@ def log_qie_registers_per_qie(ts, crate, slot, nqie):
 		"get {0}-{1}-QIE{2}_TGain".format(crate,slot,nqie),
 		"get {0}-{1}-QIE{2}_Trim".format(crate,slot,nqie)  
 		]
-	print cmds
 	output = ts.ngfec.send_commands(cmds=cmds, script=True)
 	log = ""
 	for result in output:
@@ -249,11 +247,13 @@ def log_igloo2_registers_per_card(ts, crate, slot, qiecard, igloo, scale):
 
 	if scale == 1:
 		cmds_extra = ["get {0}-{1}-{2}-{3}_CntrReg_WrEn_InputSpy".format(crate, slot, qiecard, igloo),
-			      "get {0}-{1}-{2}-{3}_CntrReg_OrbHistoRun".format(crate, slot, qiecard, igloo),
 			      "get {0}-{1}-{2}-{3}_CntrReg_CImode".format(crate, slot, qiecard, igloo),
-			      "get {0}-{1}-{2}-{3}_CntrReg_InternalQIER".format(crate, slot, qiecard, igloo),  
-			      "get {0}-{1}-{2}-{3}_CntrReg_OrbHistoClear".format(crate, slot, qiecard, igloo),      
-			      "get {0}-{1}-{2}-{3}_StatusReg_BRIDGE_SPARE".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_bit25".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_bit27".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_bit30".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_bit31".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_type2_Rst".format(crate, slot, qiecard, igloo),
+			      "get {0}-{1}-{2}-{3}_CntrReg_type3_Rst".format(crate, slot, qiecard, igloo),
 			      ]
 
 		output = ts.ngfec.send_commands(cmds=cmds_extra, script=True)
@@ -291,7 +291,7 @@ def log_igloo2_registers_calib(ts, crate, igloo, scale):
                  "get {0}-calib-{1}_bc0_status_shift_b".format(crate, igloo),
 		 "get {0}-calib-{1}_scratch".format(crate, igloo)
 		 ]
-	cmds4 = ["get {0}-calib-{1}_ChAlignStatus_count".format(crate, igloo),
+	cmds4 = ["get {0}-calib-{1}_ChAlignStatus".format(crate, igloo),
                  "get {0}-calib-{1}_Spy96bits".format(crate, igloo),
 		 ]
 
@@ -307,11 +307,13 @@ def log_igloo2_registers_calib(ts, crate, igloo, scale):
 
 	if scale == 1:
 		cmds_extra = ["get {0}-calib-{1}_CntrReg_WrEn_InputSpy".format(crate, igloo),
-			      "get {0}-calib-{1}_CntrReg_OrbHistoRun".format(crate, igloo),
 			      "get {0}-calib-{1}_CntrReg_CImode".format(crate, igloo),
-			      "get {0}-calib-{1}_CntrReg_InternalQIER".format(crate, igloo),  
-			      "get {0}-calib-{1}_CntrReg_OrbHistoClear".format(crate, igloo),      
-			      "get {0}-calib-{1}_StatusReg_BRIDGE_SPARE".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_bit25".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_bit27".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_bit30".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_bit31".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_type2_Rst".format(crate, igloo),
+			      "get {0}-calib-{1}_CntrReg_type3_Rst".format(crate, igloo),
 			      ]
 
 		output = ts.ngfec.send_commands(cmds=cmds_extra, script=True)
@@ -512,7 +514,7 @@ def log_links(ts, scale=0, logpath="data/unsorted", logstring="_test"):
                 link_status_parsed.append((uhtr_, statusDict))
 
         # Now also grab some spy data
-	link_results = uhtr.get_info_links(ts)
+	link_results = uhtr.get_info_links(ts, ts.uhtrs[("HB1",1)].crate, ts.uhtrs[("HB1",1)].slot)
 	for cs in link_results.keys():
 		active_links = [i for i, active in enumerate(link_results[cs]["active"]) if active]
 		log += "crate,slot{0}\tlinks:{1}\n".format(cs,active_links)
@@ -649,10 +651,9 @@ def record(ts=False, path="data/unsorted", scale=0):
 	
 	# Log links:
 	link_status = {}
-	if ts.name != "HEoven":
-		link_log, link_status = log_links(ts, scale=scale, logpath=path, logstring=t_string)
-		log += link_log
-		log += "\n"
+        link_log, link_status = log_links(ts, scale=scale, logpath=path, logstring=t_string)
+        log += link_log
+        log += "\n"
 
 	
 	# Log other:
@@ -779,7 +780,6 @@ if __name__ == "__main__":
 				BVscan(ts, [60., 65., 65.5, 66., 66.5, 67., 67.5, 68., 68.5, 69., 69.5, 70., 70.5, 71.])
 				print "End BV scan"
 			if (period_long!=0) and (dt_long > period_long*60):
-                                "SLOW"
 				t0_long = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 				# also parse the log here
@@ -796,7 +796,6 @@ if __name__ == "__main__":
 				LEDoff(ts)
 				print "End LED run"
 			elif (period!=0) and (dt > period*60):
-                                print "LESS SLOW"
 				t0 = time()
 				logpath, log, link_status = record(ts=ts, path=path, scale=0)
 				# also parse the log here
@@ -810,12 +809,10 @@ if __name__ == "__main__":
 						script = False)           
 				print "End histo run"                                
 			elif (period_fast!=0) and (dt_fast > period_fast):
-                                print "FAST"
 				t0_fast = time()
 				record_fast(ts=ts, ts_status = ts_status, path=path)
 	
 			elif strftime("%H:%M") == options.ptime:
-                                print "Medium"
 				logpath, log, link_status = record(ts=ts, path=path, scale=1)
 			        # also parse the log here
 				monitor_teststand.monitor_teststand(ts, ts_status, logpath, link_status, 1)
