@@ -9,6 +9,12 @@ class ngfec:
     def __init__(self, host, port, logfile=sys.stdout):
         self.connect(host, port, logfile=logfile)
 
+    def __del__(self):
+        try:
+            self.disconnect()
+        except Exception:
+            print "Failed to clean up ngFEC.exe client"
+
     def connect(self, host, port, logfile=sys.stdout):
         s = "ngFEC.exe -z -c -t -p %d -H %s" % (port, host)
         self.p = pexpect.spawn(s)
@@ -51,10 +57,11 @@ class ngfec:
         try:
             self.p.sendline(cmd)
             self.p.expect(regexp, timeout=timeout)
-            return self.p.match.group(0).split("\r\n")
+            #return self.p.match.group(0).split("\r\n")
+            return self.p.match.group(1).strip().replace("'", "").replace("_rr", "")
 
         except pexpect.TIMEOUT:
-            tail = "tail -20 %s" % self.p.logfile.name
+            tail = ""#"tail -20 %s" % self.p.logfile.name
     
             msg  = 'The command "'
             msg += cmd
@@ -63,7 +70,7 @@ class ngfec:
             print msg
 
 
-    def send_commands(self, cmds, timeout=5, script = False):
+    def send_commands(self, cmds, timeout=10, script = False):
         if script:
             with file("ngfec_script", "w") as fout:
                 fout.write("\n".join(cmds))
@@ -82,25 +89,29 @@ class ngfec:
                     self.p.expect("{0}\s?#((\s|E)[^\r^\n]*)".format(re.escape(c)), timeout=timeout)
                     t1 = time()
                 
-                    output.append({
-                        "cmd": c,
-                        "result": self.p.match.group(1).strip().replace("'", ""),
-                        "times": [t0, t1],
-                    })
+                    try:
+                        output.append({
+                            "cmd": c.replace("_rr", ""),
+                            "result": self.p.match.group(1).strip().replace("'", "").replace("_rr", "").split('#')[0],
+                            "times": [t0, t1],
+                        })
+                    except AttributeError:
+                        print "Command failed: ", c
             except pexpect.TIMEOUT:
-                tail = "tail -20 %s" % self.p.logfile.name
+                tail = ""#"tail -20 %s" % self.p.logfile.name
     
                 msg  = 'The command "'
-                msg += cmd
                 msg += '"\n       produced unexpected output.  Consult the log file, e.g.'
                 msg += '\n       "%s" gives this:' % tail
                 print msg
+                print cmds
 
-            output.append({
-                "cmd": c,
-                "result": self.p.match.group(1).strip().replace("'", ""),
-                "times": [t0, t1],
-            })
+
+            #output.append({
+            #    "cmd": c.replace("_rr", ""),
+            #    "result": self.p.match.group(1).strip().replace("'", "").replace("_rr", "").split('#')[0],
+            #    "times": [t0, t1],
+            #})
 
             return output
         else:
@@ -109,6 +120,8 @@ class ngfec:
                 t0 = time()
                 result = self.command(cmd, timeout)
                 t1 = time()
-                output.append({'cmd':cmd, 'result':result, "times":[t0, t1]})
-
+                try:
+                    output.append({'cmd':cmd.replace("_rr", ""), 'result':result.split('#')[0], "times":[t0, t1]})
+                except AttributeError:
+                    print "Command failed: ", cmd
             return output

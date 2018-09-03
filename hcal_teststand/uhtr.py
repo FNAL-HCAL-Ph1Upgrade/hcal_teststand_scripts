@@ -174,7 +174,6 @@ def send_commands(ts=None, crate=None, slot=None, ip=None, control_hub=None, cmd
         results = {}                # Results will be indexed by uHTR IP unless a "ts" has been specified, in which case they'll be indexed by (crate, slot).
         
         ## Parse ip argument:
-        print crate, slot
         ips = {ts.uhtr_ip(crate, slot):None}
         if ips:
                 ## Parse control_hub argument:
@@ -249,11 +248,12 @@ def setup(ts=None, crate=None, slot=None, ip=None, control_hub=None, auto_realig
 ## -------------------------
 ## -- Link initialization --
 ## -------------------------
-def initLinks(ts, OrbitDelay=45, Auto_Realign=1, OnTheFlyAlignment=0, CDRreset=0, GTXreset=0, verbose=True):
+def initLinks(ts, OrbitDelay=319, Auto_Realign=1, OnTheFlyAlignment=0, CDRreset=0, GTXreset=0, verbose=True):
         """Initialize all links in the teststand."""
 
-        outLine = 'Init Links with orbit delay %i' % OrbitDelay
-        if Auto_Realign: outLine+= ", with auto realign" 
+        outLine = 'Init Links with read delay %i' % OrbitDelay
+#        print outLine
+#        if Auto_Realign: outLine+= ", with auto realign" 
         if OnTheFlyAlignment: outLine += ", with on the fly alignment"
         if CDRreset: outLine += ", with CDR reset"
         if GTXreset: outLine += ", with GTX reset"
@@ -275,11 +275,8 @@ def initLinks_per_uhtr(ts, crate, slot, ip, OrbitDelay, Auto_Realign, OnTheFlyAl
                 '0',
                 'link',
                 'init',
-                str(Auto_Realign),
                 str(OrbitDelay),
                 str(OnTheFlyAlignment),
-                str(CDRreset),
-                str(GTXreset),
                 'quit',
                 'exit',
                 '-1'
@@ -384,6 +381,11 @@ def parseLinkStatus(raw_link_output, verbose=True):
                                         statData[link]['On'] = True
                                 else:
                                         statData[link]['On'] = False
+                if 'Power (uW)' in line:
+                        badData = line.split()[2:]
+                        for i in range(len(links[row])):
+                                link = links[row][i]
+                                statData[link]['power'] = float(badData[i]) > 50
                 if '8b10b bad data' in line:
                         badData = line.split()[3:]
                         for i in range(len(links[row])):
@@ -396,7 +398,7 @@ def parseLinkStatus(raw_link_output, verbose=True):
                                 statData[link]['orbitRates'] = float(orbitRates[i])
                 if 'BadAlign/FIFOfull' in line:
                         badAlign = line.split()[1:]
-                        for i in range(len(links[row])):
+                        for i in range(len(links[row])*2):
                                 link = links[row][i/2]
                                 if i % 2 == 0:
                                         statData[link]['badAlign'] = int(badAlign[i], 16)
@@ -1010,9 +1012,12 @@ def parse_spy(raw):                # From raw uHTR SPY data, return a list of ad
                                 return False
                         else:
                                 try:
-                                        data["cid"].append( [int(line.split()[-2].replace("CAP",""))]*6 )                
+                                        if "BC0" in  data["cid"]:
+                                                data["cid"].append( [int(line.split()[3].replace("BC",""))]*6 )
+                                        else:
+                                                data["cid"].append( [int(line.split()[3].replace("CAP",""))]*6 )
                                 except ValueError:
-                                        print "Could not convert", line.split()[-2].replace("CAP","")
+                                        print "Could not convert", line.split()[3].replace("CAP","")
                 adc_match = search("ADC", line)
                 if adc_match:
                         data["adc"].append([int(i) for i in line.split()[-6:]][::-1]) # This has to be reversed because the SPY prints the links out in reverse order.
@@ -1034,19 +1039,23 @@ def parse_spy(raw):                # From raw uHTR SPY data, return a list of ad
         else:
                 # Format the data dictionary into datum objects:
 #                print data
-                results = [[] for i in range(6)]                # Will return a list of datum objects for each channel.
-                for bx, adcs in enumerate(data["adc"]):
-                        for ch, adc in enumerate(adcs):
-                                results[ch].append(qie.datum(
-                                        adc=adc,
-                                        cid=data["cid"][bx][ch],
-                                        tdc=data["tdc"][bx][ch],
-                                        raw=data["raw"][bx],
-                                        raw_uhtr=reduce(lambda x, y: x + "\n" + y, raw_data[bx*3:(bx + 1)*3]),                # The data for the relevant BX ...
-                                        bx=bx,
-                                        ch=ch,
-                                ))
-                return results
+                results = [[] for i in range(6)]                # Will return a list of datum objects for each channel.                
+                try:
+                        for bx, adcs in enumerate(data["adc"]):
+                                for ch, adc in enumerate(adcs):
+                                        results[ch].append(qie.datum(
+                                                adc=adc,
+                                                cid=data["cid"][bx][ch],
+                                                tdc=data["tdc"][bx][ch],
+                                                raw=data["raw"][bx],
+                                                raw_uhtr=reduce(lambda x, y: x + "\n" + y, raw_data[bx*3:(bx + 1)*3]),                # The data for the relevant BX ...
+                                                bx=bx,
+                                                ch=ch,
+                                        ))
+                        return results
+                except IndexError:
+                        print "uHTR Spy parsing error"
+                        return False
 
 def get_data_spy(ts=None, crate=None, slot=None, ip=None, control_hub=None, script=False, n_bx=50, i_link=None):
         # Arguments and variables:
@@ -1113,7 +1122,8 @@ def get_linkdtc(ts, crate,uhtr_slot):
                 "-1"
         ]
         
-        uhtr_out = send_commands(ts=ts,crate=crate,slot=uhtr_slot, cmds=commands)[crsl]
+        uhtr_out = send_commands(ts=ts,crate=crate,slot=uhtr_slot, cmds=commands)[ts.uhtr_ip(crate, uhtr_slot)]
+        #print uhtr_out
         linkstatus=uhtr_out.split('> STATUS\n')[1].split(' \n\n\n   INIT')[0]
         dtcstatus=uhtr_out.split('================================================ ')[-1].split('\n\n   STATUS')[0]
         return (linkstatus+dtcstatus).replace('\n','\n{0}'.format(crsl))+'\n'

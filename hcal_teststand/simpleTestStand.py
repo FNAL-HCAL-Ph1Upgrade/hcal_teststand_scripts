@@ -16,11 +16,11 @@ class teststand:
         self.qie_slots = [[1,2]]
         self.qiecards = {"HB1":{1:[1,2,3,4,],2:[1,2,3,4]}}
         self.qies_per_card = 16
-        self.uhtrs = {("HB1",1):UHTR(41, 5),}
+        self.uhtrs = {("HB1",1):UHTR(41, 6),}
         self.ngfec = ngfec(self.control_hub, self.port, None)
         self.be = None
 
     def uhtr_ip(self, crate, slot):
-        return "192.168.%i.%i"%(crate, slot*4)
+        return "192.168.%i.%i"%(int(crate), int(slot)*4)
 
 

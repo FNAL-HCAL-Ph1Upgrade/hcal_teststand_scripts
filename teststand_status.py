@@ -13,13 +13,19 @@ OrbitDelay is put to 50, except for teststand HEfnal for which it is 44"""
         self.OnTheFlyAlignment = 0
         self.CDRreset = 1
         self.GTXreset = 1
-        self.OrbitDelay = 53
-        self.n_active_links = 10
-        self.maxADC = 100
-        self.maxAveADC = 20            
+        self.OrbitDelay = 322
+        self.n_active_links = 16
+        self.maxADC = 250
+        self.maxAveADC = 250            
 
 class ControlRegisters:
     def __init__(self, tstype="HEcharm"):
+        self.mezz_RX_PLL_LOCK_LOST_CNT = 0
+        self.mezz_rx_rsdec_error_cnt = 0
+        self.mezz_TMR_ERROR_COUNT = 0
+        self.mezz_rx_rsdec_error_cnt = 0
+        self.b2b_rx_rsdec_error_cnt = 0
+        self.sb2b_rx_rsdec_error_cnt = 0
         self.fec_rx_prbs_error_cnt = 0
         self.fec_rx_rs_err_cnt = 0
         self.mezz_rx_prbs_error_cnt = 0
@@ -31,9 +37,9 @@ class ControlRegisters:
         
 class ControlLink:
     def __init__(self):
-        self.qie_reset_early_cnt = 0
+        self.qie_reset_early_cnt = 1
         self.qie_reset_late_cnt = 0
-        self.mezz_scratch = '0xf 0xf 0xf 0xf'
+        self.mezz_scratch = '0xf'
     
 class QIERegisters:
     """A class to hold the expected QIE registers, and to store the current state of the ones we expect to change."""
@@ -63,43 +69,57 @@ class QIERegisters:
 class IglooRegisters:
     """ A class to hold the expected igloo registers, and to store the current state of the ones we expect to change."""
     
-    def __init__(self, qiecard, qies_per_card, tstype):
+    def __init__(self, qiecard, qies_per_card, tstype, isTop, slot):
         """Initialize the igloo registers."""
         # These are the fixed ones
-        self.FPGA_MINOR_VERSION = 0xb 
+        if(qiecard == 4 and slot == 2):
+            self.FPGA_MINOR_VERSION = 0x1 
+        else:
+            self.FPGA_MINOR_VERSION = 0x3
         #if tstype == "HEfnal":
         #    self.FPGA_MINOR_VERSION = 5
-        self.FPGA_MAJOR_VERSION = 0
+        self.FPGA_MAJOR_VERSION = 1
         self.ZerosRegister = 0
         self.OnesRegister = 0xffffffff
-        self.FPGA_TopOrBottom = 0
+        if(qiecard == 4 and slot == 2):
+            self.FPGA_TopOrBottom = 1
+        else:
+            self.FPGA_TopOrBottom = int(isTop)
         #self.StatusReg_InputSpyFifoEmpty = 1
         #self.StatusReg_InputSpyFifoFull = 0
         #self.StatusReg_InputSpyWordNum = 0
         self.StatusReg_PLL320MHzLock = 1
-        self.StatusReg_BRIDGE_SPARE = 0
+        #self.StatusReg_BRIDGE_SPARE = 0
         self.StatusReg_QieDLLNoLock = 0
-        self.StatusReg_zero = 0
+        #self.StatusReg_zero = 0
         #self.CntrReg_WrEn_InputSpy = 0
-        self.CntrReg_OrbHistoRun = 0
+        #self.CntrReg_OrbHistoRun = 0
         self.CntrReg_CImode = 0
-        self.CntrReg_InternalQIER = 0
-        self.CntrReg_OrbHistoClear = 0
-        self.CapIdErrLink3_count = 0
+        #self.CntrReg_InternalQIER = 0
+        #self.CntrReg_OrbHistoClear = 0
+        #self.CapIdErrLink3_count = 0
         self.scratch = 0xab
 
-        for j in xrange(qies_per_card):
-            setattr(self, 'Qie{0}_ck_ph'.format((qiecard-1)*qies_per_card+j+1), 0) 
+#        for j in xrange(qies_per_card):
+#            setattr(self, 'Qie{0}_ck_ph'.format((qiecard-1)*qies_per_card+j+1), 0) 
 
         # These should be increasing
         self.WTE_count = 0
         self.Clk_count = 0
-        self.RST_QIE_count = 0
+
+#        self.bc0_gen_error = 0
+        self.bc0_gen_locked = 1
+        self.bc0_status_count_a = 0
+        self.bc0_status_count_b = 0
+        self.bc0_status_missing_a = 0
+#        self.bc0_status_shift_a = 0
+        self.bc0_status_missing_b = 0
+#        self.bc0_status_shift_b = 0
 
         # These can go up, not necessarily because of radiation, but could be
         # So we should keep track of it
-        self.CapIdErrLink1_count = 0 
-        self.CapIdErrLink2_count = 0
+#        self.CapIdErrLink1_count = 0 
+#        self.CapIdErrLink2_count = 0
         
     def update_WTE_count(self, new_value):
         self.WTE_count = new_value
@@ -109,6 +129,12 @@ class IglooRegisters:
 
     def update_RST_QIE_count(self, new_value):
         self.RST_QIE_count = new_value
+
+    def update_bc0_status_count_a(self, new_value):
+        self.bc0_status_count_a = new_value
+
+    def update_bc0_status_count_b(self, new_value):
+        self.bc0_status_count_b = new_value
 
     def update_CapIdErrLink1_count(self, new_value):
         self.CapIdErrLink1_count = new_value
@@ -120,9 +146,11 @@ class IglooRegisters:
         """Update all transient variables: WTE_count, Clk_count, RST_QIE_count, CapIdErrLink1_count and CapIdErrLink2_count. Expects a dictionary as input with format {'variable name':new_value}"""
         self.update_WTE_count(new_values["WTE_count"])
         self.update_Clk_count(new_values["Clk_count"])
-        self.update_RST_QIE_count(new_values["RST_QIE_count"])
-        self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
-        self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
+        #self.update_RST_QIE_count(new_values["RST_QIE_count"])
+        self.update_bc0_status_count_a(new_values["bc0_status_count_a"])
+        self.update_bc0_status_count_b(new_values["bc0_status_count_b"])
+#        self.update_CapIdErrLink1_count(new_values["CapIdErrLink1_count"])
+#        self.update_CapIdErrLink2_count(new_values["CapIdErrLink2_count"])
         
         
 class BridgeRegisters:
@@ -132,9 +160,9 @@ and to store the current state of the ones we expect to change."""
     def __init__(self, tstype="HEfnal"):
         """Initialize the bridge registers."""
         # fixed ones
-        self.FIRMVERSION_MAJOR = 1
-        self.FIRMVERSION_MINOR = 0xe
-        self.FIRMVERSION_SVN = 0x1140
+        self.FIRMVERSION_MAJOR = 4
+        self.FIRMVERSION_MINOR = 2
+#        self.FIRMVERSION_SVN = 0x1140
         self.ZEROES = 0
         self.ONES = 0xffffffff
         self.ONESZEROES = 0xaaaaaaaa
@@ -213,8 +241,8 @@ that are expected to change"""
         # Store the QIE information, put them in a list per crate, slot combo
         self.qies = {}
         for icrate, crate in enumerate(ts.fe_crates):
-            for qie in xrange(ts.qies_per_card):
-                self.qies[crate,"calib",qie+1] = QIERegisters(self.tstype)
+#            for qie in xrange(ts.qies_per_card):
+#                self.qies[crate,"calib",qie+1] = QIERegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate][slot]:
                     for qie in xrange(ts.qies_per_card):
@@ -223,16 +251,17 @@ that are expected to change"""
         # Store the igloo information
         self.igloos = {}
         for icrate, crate in enumerate(ts.fe_crates):
-            self.igloos[crate, "calib", 1] = IglooRegisters(1, ts.qies_per_card, self.tstype)
+            #self.igloos[crate, "calib", 1] = IglooRegisters(1, ts.qies_per_card, self.tstype)
 
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate][slot]:
-                    self.igloos[crate, slot, qiecard] = IglooRegisters(qiecard, ts.qies_per_card, self.tstype)
+                    for igloo in ["iTop", "iBot"]:
+                        self.igloos[crate, slot, qiecard, igloo] = IglooRegisters(qiecard, ts.qies_per_card, self.tstype, igloo=="iTop", slot)
 
         # Store the bridge information
         self.bridges = {}
         for icrate, crate in enumerate(ts.fe_crates):
-            self.bridges[crate, "calib", 1] = BridgeRegisters(self.tstype)
+#            self.bridges[crate, "calib", 1] = BridgeRegisters(self.tstype)
             for slot in ts.qie_slots[icrate]:
                 for qiecard in ts.qiecards[crate][slot]:
                     self.bridges[crate, slot, qiecard] = BridgeRegisters(self.tstype)
