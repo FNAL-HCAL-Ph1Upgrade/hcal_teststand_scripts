@@ -28,6 +28,13 @@ def parse_log(log_raw):
         return log_parsed
 
 
+def getFromLog(log, name, section, vtype, log_name):
+        try:
+                charm_log[name] = log_parsed[section][registers][log_name]
+        except:
+                charm_log[name] = None
+        
+
 if __name__ == '__main__':
     
     parser = OptionParser()
@@ -72,15 +79,70 @@ if __name__ == '__main__':
                 except:
                     charm_log["CU_temperature"] = None
                 # -- voltages and currents -- 
-		charm_log["Vin_Voltage_J16"] = log_parsed["voltages"]["lines"][4].split()[-1]
-		charm_log["Vin_Voltage_J15"] = log_parsed["voltages"]["lines"][5].split()[-1]
-		charm_log["Vin_Voltage_J14"] = log_parsed["voltages"]["lines"][6].split()[-1]
 		try:
-                	charm_log["BiasSupplyV"] = log_parsed["biasvoltage"]["registers"]["BiasSupplyVoltage"]
-                	charm_log["BiasSupplyC"] = log_parsed["biasvoltage"]["registers"]["BiasSupplyCurrent"]	
-		except:
-			charm_log["BiasSupplyV"] = None
-			charm_log["BiasSupplyC"] = None
+                        charm_log["Vin_Voltage_J16"] = log_parsed["voltages"]["lines"][4].split()[-1]
+                except:
+                        charm_log["Vin_Voltage_J16"] = None
+                try:
+                        charm_log["Vin_Voltage_J15"] = log_parsed["voltages"]["lines"][5].split()[-1]
+                except:
+                        charm_log["Vin_Voltage_J15"] = None
+                try:
+                        charm_log["Vin_Voltage_J14"] = log_parsed["voltages"]["lines"][6].split()[-1]
+                except:
+                        charm_log["Vin_Voltage_J14"] = None
+                try:
+                        charm_log["BiasSupplyV"] = log_parsed["biasvoltage"]["registers"]["BiasSupplyVoltage"]
+                except:
+                        charm_log["BiasSupplyV"] = None
+                try:
+                        charm_log["BiasSupplyC"] = log_parsed["biasvoltage"]["registers"]["BiasSupplyCurrent"]	
+                except:
+                        charm_log["BiasSupplyC"] = None
+                try:
+                        charm_log["VIN_CLK"] = log_parsed["currents"]["lines"][0].split()[-1]
+                except:
+                        charm_log["VIN_CLK"] = None
+                try:
+                        charm_log["1V2_aCTRL"] = log_parsed["currents"]["lines"][1].split()[-1]
+                except:
+                        charm_log["1V2_aCTRL"] = None
+                try:
+                        charm_log["1V2_bCTRL"] = log_parsed["currents"]["lines"][2].split()[-1]
+                except:
+                        charm_log["1V2_bCTRL"] = None
+                try:
+                        charm_log["2V5_CLK"] = log_parsed["currents"]["lines"][3].split()[-1]
+                except:
+                        charm_log["2V5_CLK"] = None
+                try:
+                        charm_log["3V3_BKP_CLK"] = log_parsed["currents"]["lines"][4].split()[-1]
+                except:
+                        charm_log["3V3_BKP_CLK"] = None
+                try:
+                        charm_log["3V3_BKP_aCTRL"] = log_parsed["currents"]["lines"][5].split()[-1]
+                except:
+                        charm_log["3V3_BKP_aCTRL"] = None
+                try:
+                        charm_log["3V3_BKP_bCTRL"] = log_parsed["currents"]["lines"][6].split()[-1]
+                except:
+                        charm_log["3V3_BKP_bCTRL"] = None
+                try:
+                        charm_log["3V3_CLK"] = log_parsed["currents"]["lines"][7].split()[-1]
+                except:
+                        charm_log["3V3_CLK"] = None
+                try:
+                        for i in xrange(1, 3):
+                                for j in xrange(1, 5):
+                                        charm_log["QieDLLNoLock_%i_%i_Bot"%(i, j)] = log_parsed["registers"]["registers"]["get HB1-%i-%i-iBot_StatusReg_QieDLLNoLock"%(i, j)]
+                                        charm_log["QieDLLNoLock_%i_%i_Top"%(i, j)] = log_parsed["registers"]["registers"]["get HB1-%i-%i-iTop_StatusReg_QieDLLNoLock"%(i, j)]
+                except:
+                        for i in xrange(1, 3):
+                                for j in xrange(1, 5):
+                                        charm_log["QieDLLNoLock_%i_%i_Bot"%(i, j)] = None
+                                        charm_log["QieDLLNoLock_%i_%i_Top"%(i, j)] = None
+
+ 
 		'''
                 charm_log["PS_voltage"] = log_parsed["power"]["lines"][0].split()[1]
                 charm_log["PS_current"] = log_parsed["power"]["lines"][1].split()[1]
